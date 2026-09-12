@@ -37,9 +37,12 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] Rig: 19 kemik, Godot humanoid isimleri, otomatik weight
 - [x] Animasyon: Idle (2s) + Walk (1s döngü), NLA üzerinden glb'ye export
 - [x] Godot 4.7.2'de import + oynatma doğrulandı
-- [ ] Run + Jump animasyonları
-- [ ] Siluet iyileştirme: saç hacmi, el/ayak şekli, omuz genişliği
-- [ ] Yüz detayı (göz/ağız için basit geometri veya flat renk)
+- [x] Konsept: sokak stili wing chun dövüşçüsü — hoodie, jogger, distopik palet (`docs/CHARACTER.md`)
+- [x] Prosedürel wing chun klipleri: Stance, ChainPunch, FrontKick, BongSau, TanSau, PakSau, Hit
+- [x] BVH retarget scripti (`tools/retarget_bvh.py`), Bandai punch/kick ile test
+- [ ] Motifect paketi (kullanıcı yükleyecek) → retarget → oyun içi aday klipler
+- [ ] Run + Jump
+- [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)
 
 ### Faz 2 — Dünya + kontrol
 - [ ] Godot: CharacterBody3D ile 3. şahıs kontrol (WASD + kamera)

@@ -1,10 +1,29 @@
 # Ana karakter: Sokak stili Wing Chun dövüşçüsü
 
-## Konsept
+## Konsept (karar verildi)
 - Stil: stilize low-poly, flat renk (bkz. ROADMAP)
-- Kıyafet: geleneksel değil, sokak stili — hoodie/tişört, jogger/kargo pantolon, spor ayakkabı, bileklik/bandaj
-- Duruş: Yee Jee Kim Yeung Ma (içe dönük ayaklar, dizler kapalı), eller centerline'da Wu Sau / Man Sau
+- Kıyafet: **hoodie + jogger** + spor ayakkabı + el sargısı (wing chun/sokak dövüşü referansı)
+- Palet: **distopik** — soluk/aşınmış koyu tonlar + tek sinyal rengi
+  | Bölge | RGB (linear) | Not |
+  |---|---|---|
+  | Hoodie | 0.13 0.13 0.145 | aşınmış kömür grisi |
+  | Kanguru cebi | 0.17 0.17 0.185 | bir ton açık |
+  | Jogger | 0.30 0.31 0.26 | solmuş zeytin-gri |
+  | Manşet/vurgu | 0.80 0.33 0.08 | hazard turuncusu (tek sinyal rengi) |
+  | El sargısı | 0.68 0.66 0.60 | kirli bandaj |
+  | Sneaker / taban | 0.09 0.09 0.10 / 0.62 0.60 0.55 | |
+  | Ten / saç | 0.78 0.62 0.52 / 0.10 0.08 0.07 | soluk ten, buzz-cut |
+- `--hood-up` bayrağı: kapüşon kapalı varyant (yalnızca materyal ataması değişir)
+- Duruş: Yee Jee Kim Yeung Ma (içe dönük ayaklar, dizler kapalı), eller centerline'da Man Sau / Wu Sau
 - Siluet: kompakt, dirsekler içeride; abartılı kas yok
+
+## Rig eksen notları (prosedürel poz yazarken)
+Blender XYZ euler: önce X, sonra Y, sonra Z; hepsi kemiğin **rest** eksenleri etrafında.
+Uzuv kemikleri aşağı bakar (lokal Y = dünya -Z):
+- X<0 öne savurma, X>0 arkaya
+- Y: dikey eksen etrafında yaw — sol uzuvda Y>0 içe, sağda Y<0 içe
+- Z: ön-arka ekseni etrafında roll — sol uzuvda Z<0 yana açma, sağda Z>0
+Gövde kemikleri: X>0 öne eğilme, Z omurga etrafında dönme.
 
 ## Wing Chun animasyon seti (hedef)
 | Klip | Teknik | Not |
@@ -39,7 +58,9 @@ Bong/Tan/Pak Sau ve chain punch'ı içermiyor.
 - Kaynak video: kendi çektiğimiz veya CC lisanslı Siu Nim Tao / Chum Kiu form videoları.
 - Kalite: parmaklar ve hızlı yumruklar sorunlu olabilir; Blender'da temizleme gerekir.
 
-### C. Prosedürel keyframe (mevcut pipeline)
+### C. Prosedürel keyframe (mevcut pipeline) — UYGULANDI
+`tools/build_hero.py` içinde klipler: Stance (idle), Walk, ChainPunch, FrontKick, BongSau, TanSau, PakSau, Hit.
+Poz tabloları derece cinsinden; `renders/hero_poses.png` kontak sayfasıyla gözle doğrulanıyor.
 - Zaten Idle/Walk'u böyle yaptık; WC hareketleri geometrik olarak basit (dirsek centerline'da, düz hatlar)
   ve stilize karakterde iyi durur.
 - Referans: teknik tanımları (açılar, sıralama) → `tools/anim_wingchun.py` içinde poz-keyframe tabloları.
@@ -51,7 +72,10 @@ Bong/Tan/Pak Sau ve chain punch'ı içermiyor.
    humanoid rig'imize retarget denemesi; başarılıysa aynı yol Sidekick paketi için de çalışır.
 3. **Prototip tutarsa:** Sidekick Wing Chun paketi (~$45) veya MoCapAnything ile kendi çekimlerimiz.
 
-## Retarget yolu (Blender 5.2)
-- Blender'a `File > Import > Motion Capture (.bvh)` veya FBX ile al
-- Kemik isim eşlemesi: Mixamo (`mixamorig:LeftArm`) → bizim (`LeftUpperArm`) — script ile
-- Godot tarafında alternatif: `SkeletonProfileHumanoid` + BoneMap ile retarget (import ayarı), Blender'a gerek kalmaz
+## Retarget yolu (Blender 5.2) — `tools/retarget_bvh.py`
+- Kaynak iskeletin rest pozu önemsiz: her hero kemiği, eşleşen kaynak eklemleri arasındaki dünya yönüne "aim" edilir;
+  Hips ve Chest iki vektörden (yukarı + sol-sağ) tam oryantasyon alır.
+- İsim haritası Bandai, Mixamo ve UE-tarzı isimleri kapsar (`NAME_MAPS`).
+- Sonuç NLA track olarak hero.blend'e eklenir ve hero.glb yeniden export edilir.
+- Godot tarafında alternatif: `SkeletonProfileHumanoid` + BoneMap ile motor içi retarget.
+
