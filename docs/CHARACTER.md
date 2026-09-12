@@ -46,7 +46,29 @@
   ve tüm UpperArm pozlarına `ARM_REST_FIX` (14°) içe roll eklenir.
 - Gözler: küre parçası; ön yüzler koyu iris, geri kalanı beyaz. Saç: kafa üstü/arkası "undercut" + tepede top-knot küresi.
 
-## Rig eksen notları (prosedürel poz yazarken)
+### Kumaş kabukları (v4.1)
+- Parçalı gövde "zırh plakası" gibi okunuyordu ve rijit bağlama diz/dirsekte boşluk bırakıyordu.
+- Çözüm: hoodie ve jogger, ilgili parçaların kopyasının **voxel remesh**'i (0.016 m) → tek sürekli yüzey, normal boyunca
+  12 mm şişirme, decimate (~1000 yüz), flat shading. Ağırlıklar gövdeden **DataTransfer (nearest face)** ile alınıp
+  dikişlerde yumuşatılır; böylece kumaş eklemlerde gerilir, boşluk görünmez.
+- Sol ön kol kabuğun dışında bırakılır (sargı + turuncu bant görünür kalır). Göğüs merkez hattı kabuğun önünde ince levha.
+- Jogger yan şeridi denendi ve kaldırıldı (şişirilmiş kabuğun dışında havada kalıyordu); vurgu manşetlerde.
+
+## Meshy.ai değerlendirmesi (Eylül 2026)
+**Ne:** Metin/görselden 3D model üretimi, otomatik retopo/remesh, insansı auto-rig, 600+ animasyon kütüphanesi;
+resmi MCP sunucusu (24 araç) ve REST API. Formatlar GLB/FBX/OBJ.
+**Fiyat/lisans:** Free 100 kredi/ay, 10 indirme, çıktılar CC BY 4.0 (atıf şart). Pro 20$/ay 1000 kredi, tam ticari hak,
+**API/MCP sadece Pro ve üstü**. Krediler devretmez.
+**Bizim için artı:** hızlı konsept denemesi (bir prompt'la "Sifu tarzı sokak wing chun dövüşçüsü" görüp yönü test etmek),
+sahne/prop/silah üretimi, base mesh alternatifi (2. seçenek yerine tek adımda texture'lı karakter).
+**Eksi:** çıktılar texture'lı ve "yumuşak"; bizim flat-renk low-poly stiliyle uyuşmaz, remesh sonrası bile texture bağımlı.
+Kapüşon açık/kapalı gibi varyantlar için tutarlılık garantisi yok. Rig kendi iskeleti → Godot BoneMap/retarget gerekir.
+Cloud ortamımızda MCP kullanmak için Pro hesap + API anahtarı gerekir.
+**Karar:** Ana karakter için şimdilik gereksiz; base mesh yaklaşımı tuttu. Üç durumda değerli: (1) kullanıcı konsept
+görselleştirmesi istiyorsa, (2) 2. seçeneğe geçilirse texture'lı bir gövde kaynağı olarak, (3) Faz 2-3'te prop/çevre
+asset'leri için. Free plan denemesi tarayıcıdan yapılabilir (API gerekmez), sonuç GLB olarak repoya konursa retarget
+pipeline'ı üstünde çalışır.
+
 Blender XYZ euler: önce X, sonra Y, sonra Z; hepsi kemiğin **rest** eksenleri etrafında.
 Uzuv kemikleri aşağı bakar (lokal Y = dünya -Z):
 - X<0 öne savurma, X>0 arkaya

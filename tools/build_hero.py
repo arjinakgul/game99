@@ -207,7 +207,7 @@ for v in mesh.vertices:
             lo, hi = PB[f"{k}.{'L' if side > 0 else 'R'}"]
             if lo.z - 0.02 <= z <= hi.z + 0.02:
                 c = (lo + hi) / 2
-                f = 1.28 if k != "hand" else 1.05
+                f = 1.28 if k != "hand" else 1.0
                 v.co.x = c.x + (v.co.x - c.x) * f
                 v.co.y = c.y + (y - c.y) * f
                 break
@@ -235,7 +235,7 @@ def add_box(name, size, loc, mat):
     return ob
 chest_lo, chest_hi = PB["chest"]
 chest_front = chest_lo.y
-extras = [add_box("Centreline", (0.022, 0.02, chest_hi.z - chest_lo.z - 0.06), (0, chest_front + 0.004, pc("chest").z), "Signal")]
+extras = [add_box("Centreline", (0.022, 0.02, chest_hi.z - chest_lo.z - 0.06), (0, chest_front - 0.016, pc("chest").z), "Signal")]
 rigid_group(extras[0], "Chest")
 bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=0.045, location=(0, pc("head").y + 0.05, PB["head"][1].z - 0.01))
 bun = bpy.context.active_object; bun.name = "TopKnot"
@@ -244,6 +244,45 @@ for pl in bun.data.polygons: pl.material_index = MAT_INDEX["Hair"]
 bun.data.shade_flat()
 rigid_group(bun, "Head")
 extras.append(bun)
+
+# ---- cloth shells: one continuous surface over the segmented parts (hides seams + joint gaps)
+def cloth_shell(name, keep_material, drop=lambda c: False, voxel=0.016, faces=900, inflate=0.012):
+    src = body.copy(); src.data = body.data.copy(); src.name = name
+    scene.collection.objects.link(src)
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = src; src.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="DESELECT"); bpy.ops.object.mode_set(mode="OBJECT")
+    for pl in src.data.polygons:
+        pl.select = (src.data.materials[pl.material_index].name != keep_material) or drop(pl.center)
+    bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.delete(type="FACE"); bpy.ops.object.mode_set(mode="OBJECT")
+    rm = src.modifiers.new("Remesh", "REMESH"); rm.mode = "VOXEL"; rm.voxel_size = voxel; rm.use_smooth_shade = False
+    bpy.ops.object.modifier_apply(modifier="Remesh")
+    src.data.update()
+    for v in src.data.vertices:
+        v.co += v.normal * inflate
+    dm = src.modifiers.new("Decimate", "DECIMATE"); dm.ratio = min(1.0, faces / max(1, len(src.data.polygons)))
+    bpy.ops.object.modifier_apply(modifier="Decimate")
+    src.data.shade_flat()
+    for pl in src.data.polygons:
+        pl.material_index = MAT_INDEX[keep_material]
+    # weights: nearest-face transfer from the rigid body parts, then smoothed across seams
+    dt = src.modifiers.new("Weights", "DATA_TRANSFER"); dt.object = body
+    dt.use_vert_data = True; dt.data_types_verts = {"VGROUP_WEIGHTS"}
+    dt.vert_mapping = "POLYINTERP_NEAREST"; dt.layers_vgroup_select_src = "ALL"; dt.layers_vgroup_select_dst = "NAME"
+    bpy.ops.object.datalayout_transfer(modifier=dt.name)
+    bpy.ops.object.modifier_apply(modifier=dt.name)
+    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+    bpy.ops.object.vertex_group_smooth(group_select_mode="ALL", factor=0.5, repeat=4, expand=0.5)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print(f"{name}: {len(src.data.polygons)} faces")
+    return src
+
+left_forearm = lambda c: (c.x > 0.22 and c.z < 1.21)          # keep the wrapped left forearm visible
+hoodie = cloth_shell("HoodieShell", "Hoodie", drop=left_forearm, faces=1100)
+joggers = cloth_shell("JoggersShell", "Joggers", faces=900)
+# body faces now covered by the shells: keep them (no z-fight, shells are inflated) but recolour
+# nothing; the shells carry the pocket/stripe details instead.
+CLOTH = [hoodie, joggers]
 
 # ---- per-face refinements on the joined body
 head_lo, head_hi = PB["head"]
@@ -255,8 +294,6 @@ def refine(poly):
         return "Sole" if (poly.normal.z < -0.6 and z < 0.035) else "Sneaker"
     if cur == "Joggers":
         if z < 0.20: return "Signal"                                   # cuffs
-        side = 1 if c.x > 0 else -1
-        if poly.normal.x * side > 0.85 and 0.25 < z < 0.90: return "Stripe"   # outer-leg stripe
         return "Joggers"
     if cur == "Hoodie":
         if x > 0.22 and z < hand_top + 0.02: return "Wrap"              # wrist overlap
@@ -272,6 +309,16 @@ def refine(poly):
     return cur
 for poly in mesh.polygons:
     poly.material_index = MAT_INDEX[refine(poly)]
+for shell in CLOTH:
+    sm = shell.data
+    for poly in sm.polygons:
+        c = poly.center; x, y, z = abs(c.x), c.y, c.z
+        cur = sm.materials[poly.material_index].name
+        if cur == "Joggers":
+            if z < 0.20: poly.material_index = MAT_INDEX["Signal"]
+        elif cur == "Hoodie":
+            if c.x > 0.22 and hand_top < z < 1.21: poly.material_index = MAT_INDEX["Signal"]     # tape at the elbow
+            elif y < chest_front - 0.005 and x < 0.11 and 1.00 < z < 1.14: poly.material_index = MAT_INDEX["Pocket"]
 
 bpy.ops.object.select_all(action="DESELECT")
 for e in extras:
@@ -293,15 +340,16 @@ for pl in hood_down.data.polygons:
     pl.material_index = MAT_INDEX["Signal" if pl.normal.z > 0.45 else "Hoodie"]
 
 HU = {}
-HU["A"] = (Vector((0, hc.y + 0.02, head_lo.z + 0.02)), hr * 0.85, None)
-HU["B"] = (Vector((0, hc.y + 0.02, hc.z)),             hr * 1.55, "A")
-HU["C"] = (Vector((0, hc.y + 0.02, hc.z + 0.11)),      hr * 1.45, "B")
-HU["D"] = (Vector((0, hc.y - 0.01, head_hi.z + 0.07)), hr * 0.9, "C")
+HU["A"] = (Vector((0, hc.y + 0.06, head_lo.z - 0.08)), hr * 0.9, None)     # drape on the upper back
+HU["B"] = (Vector((0, hc.y + 0.04, head_lo.z + 0.04)), hr * 1.35, "A")
+HU["C"] = (Vector((0, hc.y + 0.03, hc.z + 0.02)),      hr * 1.55, "B")
+HU["D"] = (Vector((0, hc.y + 0.02, hc.z + 0.12)),      hr * 1.45, "C")
+HU["E"] = (Vector((0, hc.y - 0.02, head_hi.z + 0.06)), hr * 0.85, "D")
 hood_up = skin_object("HoodUp", HU, "A")
 bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="DESELECT"); bpy.ops.object.mode_set(mode="OBJECT")
 for pl in hood_up.data.polygons:
     c = pl.center
-    pl.select = (pl.normal.y < -0.55 and head_lo.z + 0.03 < c.z < hc.z + 0.13)
+    pl.select = (pl.normal.y < -0.45 and head_lo.z + 0.0 < c.z < hc.z + 0.14 and abs(c.x) < hr * 1.25)
 bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.delete(type="FACE"); bpy.ops.object.mode_set(mode="OBJECT")
 for pl in hood_up.data.polygons:
     c = pl.center
@@ -310,14 +358,14 @@ sol = hood_up.modifiers.new("Solidify", "SOLIDIFY")
 sol.thickness = 0.02; sol.offset = -1.0; sol.use_rim = True
 sol.material_offset = sol.material_offset_rim = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]
 bpy.ops.object.modifier_apply(modifier="Solidify")
-mask = add_box("Mask", (hr * 1.9, 0.05, 0.085), (0, head_lo.y + 0.06, hc.z - 0.085), "Mask")
+mask = add_box("Mask", (hr * 1.9, 0.05, 0.085), (0, head_lo.y + 0.02, hc.z - 0.085), "Mask")
 bpy.ops.object.select_all(action="DESELECT")
 mask.select_set(True); hood_up.select_set(True)
 bpy.context.view_layer.objects.active = hood_up
 bpy.ops.object.join()
 rigid_group(hood_up, "Head")
 rigid_group(hood_down, "Chest")
-MESHES = [body, hood_down, hood_up]
+MESHES = [body, hood_down, hood_up] + CLOTH
 
 # ---------------------------------------------------------- rig joints from parts
 def jz(k, frac):      # z at fraction of a part's height
