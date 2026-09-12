@@ -30,8 +30,8 @@ DO_EXPORT = "--no-export" not in argv
 NAME_MAPS = {
     "Hips":          ["Hips", "mixamorig:Hips", "pelvis"],
     "Spine":         ["Spine", "mixamorig:Spine", "spine_01"],
-    "Chest":         ["Chest", "Spine1", "mixamorig:Spine1", "spine_02"],
-    "Neck":          ["Neck", "mixamorig:Neck", "neck_01"],
+    "Chest":         ["Chest", "Spine02", "Spine1", "mixamorig:Spine1", "spine_02"],
+    "Neck":          ["Neck", "neck", "mixamorig:Neck", "neck_01"],
     "Head":          ["Head", "mixamorig:Head", "head"],
     "LeftShoulder":  ["Shoulder_L", "LeftShoulder", "mixamorig:LeftShoulder", "clavicle_l"],
     "LeftUpperArm":  ["UpperArm_L", "LeftArm", "mixamorig:LeftArm", "upperarm_l"],
@@ -98,16 +98,34 @@ def src_pos(src_arm, mapping, key):
 
 def retarget_clip(bvh_path, clip, in_place=False):
     before = set(bpy.data.objects)
-    bpy.ops.import_anim.bvh(filepath=bvh_path, global_scale=0.01, frame_start=1,
-                            use_fps_scale=False, update_scene_fps=False,
-                            update_scene_duration=False, rotate_mode="QUATERNION",
-                            axis_forward="-Z", axis_up="Y")
-    src = next(o for o in set(bpy.data.objects) - before if o.type == "ARMATURE")
+    if bvh_path.lower().endswith(".glb") or bvh_path.lower().endswith(".gltf"):
+        bpy.ops.import_scene.gltf(filepath=bvh_path)
+        new = [o for o in bpy.data.objects if o not in before]
+        src = next(o for o in new if o.type == "ARMATURE")
+        for o in new:                                   # drop the skinned mesh / empties, keep the armature
+            if o is not src and o.type != "ARMATURE":
+                if o.type == "MESH":
+                    bpy.data.objects.remove(o, do_unlink=True)
+        for o in [o for o in bpy.data.objects if o not in before and o.type == "EMPTY"]:
+            for c in o.children: c.parent = None
+            bpy.data.objects.remove(o, do_unlink=True)
+        src.parent = None
+        src.scale = (1, 1, 1)
+        if src.animation_data and src.animation_data.action:
+            a = src.animation_data.action
+            src.animation_data.action = None
+            src.animation_data.action = a               # re-assign after parent clear (slot binding)
+    else:
+        bpy.ops.import_anim.bvh(filepath=bvh_path, global_scale=0.01, frame_start=1,
+                                use_fps_scale=False, update_scene_fps=False,
+                                update_scene_duration=False, rotate_mode="QUATERNION",
+                                axis_forward="-Z", axis_up="Y")
+        src = next(o for o in set(bpy.data.objects) - before if o.type == "ARMATURE")
     mapping = resolve(src)
     missing = [b for b in ORDER if b not in mapping]
     if missing:
         print("WARN unmapped hero bones:", missing)
-    nframes = int(src.animation_data.action.frame_range[1])
+    nframes = max(2, int(round(src.animation_data.action.frame_range[1])))
     print(f"[{clip}] {os.path.basename(bvh_path)}: {nframes} frames, mapped {len(mapping)} bones")
 
     # --- orientation/scale calibration on frame 1

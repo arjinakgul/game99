@@ -21,3 +21,16 @@ Kaynak: Pixellab sprite → Meshy 7 image-to-3D (Pro plan, tam ticari hak).
 - Mocap klipleri `tools/retarget_bvh.py` ile aynı rig isimleri üzerinden aktarılır (make_all.sh içinde otomatik).
 - Web arayüzünde üretilen Pixellab tabanlı model API'den görünmüyor; elle indirilip buraya `hero_meshy_web.glb`
   olarak konursa `rig_meshy.py` ile aynı yoldan işlenir.
+
+## Durum (v1, Pro ile)
+| Dosya | Kaynak | Kredi |
+|---|---|---|
+| `hero_meshy_v1_mesh.glb` | konsept görsel → Meshy 7 image-to-3D, dokusuz, 20k üçgen | 3 + 20 |
+| `hero_meshy_v1_textured.glb` + `_base_color.png` | retexture (düz cel renk prompt'u) | 10 |
+| `hero_meshy_v1_meshyrig.glb`, `_meshy_walk.glb`, `_meshy_run.glb` | Meshy auto-rig (24 kemik, Mixamo isimleri) + yürüme/koşma | 5 |
+| `hero_meshy_hooddown_v1_mesh.glb` | kapüşon-açık konsept → image-to-3D, dokusuz | 3 + 20 |
+
+Pipeline: `rig_meshy.py --meshy-rig` Meshy iskeletini bizim 19 kemik ismine çevirir (Spine01, ToeBase, head_end vb.
+ebeveyne birleştirilir), ağırlıkları dokulu mesh'e nearest-face ile aktarır, prosedürel klipleri kurar;
+`retarget_bvh.py` BVH ve GLB (Meshy walk/run) kaynaklarını aynı rig'e aktarır. Sonuç `assets/exports/hero_meshy.glb`,
+Godot ana sahnesinde kullanılır. Kapüşon-açık model kendi rig'imizle (mesafe skinning) `hero_meshy_hooddown.glb`.
