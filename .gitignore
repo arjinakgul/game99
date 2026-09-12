@@ -13,3 +13,7 @@ game-godot/export_presets.cfg
 Thumbs.db
 .vscode/
 .idea/
+
+# Meshy test outputs (large, not kept in git)
+assets/props/_tests/
+meshy_output/

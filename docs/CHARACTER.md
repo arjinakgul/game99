@@ -133,3 +133,15 @@ Poz tabloları derece cinsinden; `renders/hero_poses.png` kontak sayfasıyla gö
 - Sonuç NLA track olarak hero.blend'e eklenir ve hero.glb yeniden export edilir.
 - Godot tarafında alternatif: `SkeletonProfileHumanoid` + BoneMap ile motor içi retarget.
 
+
+## Meshy MCP — ilk deneme notları (Eylül 2026)
+- MCP bağlantısı çalışıyor (`.mcp.json` + `MESHY_API_KEY`). Web arayüzünde üretilen modeller API'den **görünmüyor**
+  (görev ve model listeleri boş); web'de üretilenler elle indirilip repoya konmalı. API ile üretilenler ise
+  `meshy_download_model` ile doğrudan repoya iner.
+- `meshy_get_task_status(wait=true)` MCP tarafında 60 sn'de zaman aşımına düşüyor; `wait=false` ile sorgulayıp
+  REST üzerinden (`tools/meshy_api.py` veya curl) beklemek daha güvenilir.
+- Test: metinden 3D "mook jong" (Meshy 6, 20 + doku 10 kredi). Mesh geldi, indirildi, Blender'a aktarıldı ama
+  içerik yanlış: iki delikli silindir. **Ders:** niş/az bilinen objeler için metin→3D zayıf; önce
+  `meshy_text_to_image` (3 kredi) ile referans görsel üret, beğen, sonra `meshy_image_to_3d`
+  (smart-topology 15 kredi, meshy-7 30 kredi). Karakterde zaten bu yol izlendi ve sonuç çok iyiydi.
+- Kredi tablosu: image-to-3d meshy-7 20 (+10 doku), smart-topology 5 (+10 doku), remesh 5, rig 5, animate 3.
