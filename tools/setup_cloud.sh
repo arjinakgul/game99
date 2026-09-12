@@ -4,7 +4,7 @@
 set -euo pipefail
 
 BLENDER_VER="${BLENDER_VER:-5.1.2}"
-GODOT_VER="${GODOT_VER:-4.5}"
+GODOT_VER="${GODOT_VER:-4.7.2}"
 TMP="${TMPDIR:-/tmp}/game99-setup"; mkdir -p "$TMP"
 
 # --- Mesa software OpenGL so headless EEVEE / Godot work without a GPU ---

@@ -15,19 +15,31 @@
 test edilebiliyor. Prototip ve "playground" aşaması için Godot 4. Prototip başarılı olursa ve fotogerçekçi
 grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal'a da taşınır.
 
+## Karar: Görsel stil — stilize low-poly, flat renk
+
+- Tek parça gövde: Blender **Skin modifier** ile prosedürel (edge iskeleti + yarıçaplar), 1 seviye subdivision, flat shading
+- Texture yok: bölge bazlı düz materyaller (skin/hair/shirt/pants/boots/belt) → hızlı iterasyon, küçük dosya
+- Kemik isimleri Godot **SkeletonProfileHumanoid** ile uyumlu (Hips, Spine, Chest, LeftUpperArm, ...) → ileride
+  Mixamo vb. animasyonlar retarget edilebilir
+- Gerekçe: GPU'suz cloud ortamında her şey Python ile üretilip headless test edilebiliyor; gerçekçi modelleme
+  ve texture boyama bu ortamda verimsiz
+
 ## Fazlar
 
 ### Faz 0 — Ortam (TAMAMLANDI)
 - [x] Blender 5.1.2 headless çalışıyor (`tools/setup_cloud.sh`)
-- [x] Godot 4.5 headless import/run çalışıyor
+- [x] Godot 4.7.2 headless import/run çalışıyor
 - [x] Blender → .glb → Godot döngüsü animasyonla doğrulandı
 
-### Faz 1 — Ana karakter
-- [ ] Karakter konsepti: stil (low-poly / stilize / gerçekçi), siluet, renk paleti
-- [ ] Blender'da prosedürel (Python) gövde modelleme, blok mesh yerine düzgün topoloji
-- [ ] Rig: standart humanoid kemik isimleri (Mixamo/Godot uyumlu), IK
-- [ ] Temel animasyonlar: idle, walk, run, jump
-- [ ] Basit materyal / renk texture'ları
+### Faz 1 — Ana karakter (DEVAM EDİYOR)
+- [x] Stil kararı: stilize low-poly, flat renk paleti
+- [x] `tools/build_hero.py`: Skin modifier ile tek parça gövde (607 vert / 602 face)
+- [x] Rig: 19 kemik, Godot humanoid isimleri, otomatik weight
+- [x] Animasyon: Idle (2s) + Walk (1s döngü), NLA üzerinden glb'ye export
+- [x] Godot 4.7.2'de import + oynatma doğrulandı
+- [ ] Run + Jump animasyonları
+- [ ] Siluet iyileştirme: saç hacmi, el/ayak şekli, omuz genişliği
+- [ ] Yüz detayı (göz/ağız için basit geometri veya flat renk)
 
 ### Faz 2 — Dünya + kontrol
 - [ ] Godot: CharacterBody3D ile 3. şahıs kontrol (WASD + kamera)
