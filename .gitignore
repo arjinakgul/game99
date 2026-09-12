@@ -1,0 +1,15 @@
+# Blender
+*.blend1
+*.blend2
+__pycache__/
+
+# Godot
+game-godot/.godot/
+game-godot/export_presets.cfg
+*.import.tmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

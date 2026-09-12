@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/hero_placeholder.glb" id="1_hero"]
+[ext_resource type="Script" path="res://hero.gd" id="2_hero"]
+
+[sub_resource type="BoxMesh" id="ground"]
+size = Vector3(20, 0.2, 20)
+
+[node name="Main" type="Node3D"]
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+mesh = SubResource("ground")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766, -0.492, 0.413, 0, 0.643, 0.766, -0.643, -0.587, 0.492, 0, 6, 0)
+shadow_enabled = true
+
+[node name="Hero" parent="." instance=ExtResource("1_hero")]
+script = ExtResource("2_hero")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(0.707, -0.3, 0.64, 0, 0.906, 0.423, -0.707, -0.3, 0.64, 3.2, 2.2, 3.6)
