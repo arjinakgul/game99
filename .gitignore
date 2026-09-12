@@ -17,3 +17,4 @@ Thumbs.db
 # Meshy test outputs (large, not kept in git)
 assets/props/_tests/
 meshy_output/
+*.blend1
