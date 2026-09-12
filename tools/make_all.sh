@@ -25,6 +25,16 @@ for f in assets/mocap/bandai/dataset-1_punch_normal_001.bvh:MocapPunch \
 done
 $BLENDER -b assets/characters/hero/hero.blend --python tools/retarget_bvh.py -- $JOBS 2>&1 | grep -E "^\[|WARN unmapped|DONE|Traceback|line [0-9]+"
 
+echo "== meshy hero (if present)"
+MESHY_SRC=assets/characters/hero_meshy/hero_meshy_v1_mesh.glb
+if [ -f "$MESHY_SRC" ]; then
+  $BLENDER -b --python tools/rig_meshy.py -- "$MESHY_SRC" hero_meshy 2>&1 | grep -E "^Hero|skinning|DONE|Traceback|line [0-9]+"
+  $BLENDER -b assets/characters/hero_meshy/hero_meshy.blend --python tools/retarget_bvh.py -- $JOBS 2>&1 | grep -E "^\[|WARN unmapped|DONE|Traceback|line [0-9]+"
+  [ -z "$EXTRA" ] && $BLENDER -b assets/characters/hero_meshy/hero_meshy.blend --python tools/render_sheet.py -- \
+    renders/hero_meshy_poses.png Stance:1 ChainPunch:7 FrontKick:11 BongSau:9 Walk:7 MT_Guard:150 MT_Teep:26 MT_Roundhouse:79 Judo_HipThrow:34 2>&1 | grep -E "Sheet|Traceback"
+  cp assets/exports/hero_meshy.glb game-godot/assets/hero_meshy.glb
+fi
+
 echo "== mocap contact sheet"
 [ -z "$EXTRA" ] && $BLENDER -b assets/characters/hero/hero.blend --python tools/render_sheet.py -- \
   renders/hero_mocap.png --fight MocapPunch:115 MocapKick:327 MT_Guard:150 MT_Combo:99 MT_Teep:26 \

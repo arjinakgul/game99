@@ -19,7 +19,7 @@ from mathutils import Matrix, Vector, Quaternion
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPORT_DIR = os.path.join(ROOT, "assets", "exports")
 RENDER_DIR = os.path.join(ROOT, "renders")
-CHAR_BLEND = os.path.join(ROOT, "assets", "characters", "hero", "hero.blend")
+CHAR_BLEND = bpy.data.filepath or os.path.join(ROOT, "assets", "characters", "hero", "hero.blend")   # save back to the opened .blend
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 jobs = [(a.split(":")[0], a.split(":")[1], "inplace" in a.split(":")[2:]) for a in argv if not a.startswith("--")]
@@ -232,8 +232,9 @@ if DO_EXPORT:
         if ob.type == "MESH" and ob.parent == hero:
             ob.select_set(True)
     hero.select_set(True)
+    out_name = os.path.splitext(os.path.basename(CHAR_BLEND))[0] + ".glb"
     bpy.ops.export_scene.gltf(
-        filepath=os.path.join(EXPORT_DIR, "hero.glb"), export_format="GLB", use_selection=True,
+        filepath=os.path.join(EXPORT_DIR, out_name), export_format="GLB", use_selection=True,
         export_animations=True, export_animation_mode="ACTIONS", export_yup=True,
         export_apply=True, export_skins=True, export_def_bones=False)
 print("DONE retarget:", [j[1] for j in jobs])
