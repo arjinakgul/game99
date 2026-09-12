@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
-[ext_resource type="PackedScene" path="res://assets/hero_meshy.glb" id="1_hero"]
-[ext_resource type="Script" path="res://hero.gd" id="2_hero"]
+[ext_resource type="PackedScene" path="res://assets/hero_meshy.glb" id="1_up"]
+[ext_resource type="PackedScene" path="res://assets/hero_meshy_hooddown.glb" id="2_down"]
+[ext_resource type="Script" path="res://hero.gd" id="3_hero"]
 
 [sub_resource type="BoxMesh" id="ground"]
 size = Vector3(20, 0.2, 20)
@@ -16,8 +17,12 @@ mesh = SubResource("ground")
 transform = Transform3D(0.766, -0.492, 0.413, 0, 0.643, 0.766, -0.643, -0.587, 0.492, 0, 6, 0)
 shadow_enabled = true
 
-[node name="Hero" parent="." instance=ExtResource("1_hero")]
-script = ExtResource("2_hero")
+[node name="Hero" type="Node3D" parent="."]
+script = ExtResource("3_hero")
+
+[node name="HoodUp" parent="Hero" instance=ExtResource("1_up")]
+
+[node name="HoodDown" parent="Hero" instance=ExtResource("2_down")]
 
 [node name="Camera" type="Camera3D" parent="."]
 transform = Transform3D(0.707, -0.3, 0.64, 0, 0.906, 0.423, -0.707, -0.3, 0.64, 3.2, 2.2, 3.6)

@@ -47,7 +47,7 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] v4.1 cilası: voxel remesh kumaş kabukları (hoodie/jogger), sarkan kapüşon, göz beyazı
 - [x] Meshy Pro + MCP: konsept görsel → Meshy 7 mesh → Blender rig (mesafe skinning) → 18 klip; `hero_meshy.glb`
 - [x] Meshy hero: doku, Meshy auto-rig ağırlıkları, kapüşon-açık varyant mesh'i (toplam ~81 kredi)
-- [ ] Kapüşon-açık modele doku (10 kredi) ve iki model arasında fight-mode geçişi (Godot'ta iki sahne)
+- [x] Kapüşon-açık modele doku (10 kredi); Godot'ta iki model (HoodUp/HoodDown) tek Hero düğümünde, fight_mode görünürlük geçişi
 - [ ] Ana karakter kararı: Meshy hero (chibi) vs base-mesh hero (v4.1); base-mesh düşman/NPC üreticisi olarak kalır
 - [ ] Run + Jump
 - [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)

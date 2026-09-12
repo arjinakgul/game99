@@ -24,6 +24,7 @@ def opt(flag, default, cast=float):
 HEIGHT = opt("--height", 1.75)
 ARM_FIX = opt("--arm-fix", 24.0)
 MESHY_RIG = opt("--meshy-rig", None, str)
+HOOD_DOWN = "--hood-down" in argv     # hood resting on the shoulders: bind that cloth to the chest, not the head
 OUT_DIR = os.path.join(ROOT, "assets", "characters", "hero_meshy")
 EXPORT = os.path.join(ROOT, "assets", "exports", f"{name}.glb")
 def P(p): return p if os.path.isabs(p) else os.path.join(ROOT, p)
@@ -196,6 +197,16 @@ else:
         w1, w2 = 1 / d1 ** 4, 1 / d2 ** 4
         if w2 / (w1 + w2) < 0.08: groups[n1].add([v.index], 1.0, "REPLACE")
         else: groups[n1].add([v.index], w1 / (w1 + w2), "REPLACE"); groups[n2].add([v.index], w2 / (w1 + w2), "REPLACE")
+    if HOOD_DOWN:
+        # cloth behind/beside the neck at shoulder height belongs to the torso, not the head
+        n = 0
+        for v in me.vertices:
+            c = v.co
+            if 0.60 * H < c.z < 0.75 * H and (c.y > 0.015 * H or abs(c.x) > 0.075 * H):
+                for g in list(v.groups):
+                    body.vertex_groups[g.group].remove([v.index])
+                groups["Chest"].add([v.index], 1.0, "REPLACE"); n += 1
+        print("hood-down fix: reassigned", n, "verts to Chest")
     print("distance skinning done; ungrouped verts:", sum(1 for v in me.vertices if not v.groups))
 
 hero_anims.build_clips(arm, scene, arm_rest_fix=ARM_FIX)

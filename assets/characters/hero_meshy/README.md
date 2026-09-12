@@ -29,6 +29,7 @@ Kaynak: Pixellab sprite → Meshy 7 image-to-3D (Pro plan, tam ticari hak).
 | `hero_meshy_v1_textured.glb` + `_base_color.png` | retexture (düz cel renk prompt'u) | 10 |
 | `hero_meshy_v1_meshyrig.glb`, `_meshy_walk.glb`, `_meshy_run.glb` | Meshy auto-rig (24 kemik, Mixamo isimleri) + yürüme/koşma | 5 |
 | `hero_meshy_hooddown_v1_mesh.glb` | kapüşon-açık konsept → image-to-3D, dokusuz | 3 + 20 |
+| `hero_meshy_hooddown_v1_textured.glb` | retexture | 10 |
 
 Pipeline: `rig_meshy.py --meshy-rig` Meshy iskeletini bizim 19 kemik ismine çevirir (Spine01, ToeBase, head_end vb.
 ebeveyne birleştirilir), ağırlıkları dokulu mesh'e nearest-face ile aktarır, prosedürel klipleri kurar;
