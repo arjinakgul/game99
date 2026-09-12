@@ -38,6 +38,9 @@ Uzuv kemikleri aşağı bakar (lokal Y = dünya -Z):
 - Z: ön-arka ekseni etrafında roll — sol uzuvda Z<0 yana açma, sağda Z>0
 Gövde kemikleri: X>0 öne eğilme, Z omurga etrafında dönme.
 
+**Depolama:** Pozlar derece/euler olarak yazılır ama rig tamamen QUATERNION modunda keyframe'lenir; Blender kemiğin
+modundaki kanalı okuduğu için euler ve quaternion klipler aynı rig'de karışamaz (bu yüzden retarget sonrası mod geri çevrilmez).
+
 ## Wing Chun animasyon seti (hedef)
 | Klip | Teknik | Not |
 |---|---|---|

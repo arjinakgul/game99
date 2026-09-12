@@ -21,7 +21,7 @@ Usage:
 """
 import bpy, math, os, sys
 import numpy as np
-from mathutils import Vector
+from mathutils import Vector, Euler
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHAR_DIR = os.path.join(ROOT, "assets", "characters", "hero")
@@ -289,15 +289,17 @@ PUNCH_R = {"RightUpperArm": (-85, -18, 0), "RightLowerArm": (-2, 0, 0), "RightHa
 GUARD = {k: STANCE[k] for k in STANCE if "Arm" in k or "Hand" in k}
 
 def apply_pose(pose):
+    """Poses are authored as XYZ euler degrees but stored as quaternions so the
+    whole rig (procedural + retargeted mocap) shares one rotation mode."""
     for pb in arm.pose.bones:
-        pb.rotation_mode = "XYZ"
-        pb.rotation_euler = (0, 0, 0)
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = (1, 0, 0, 0)
         pb.location = (0, 0, 0)
     for b, v in pose.items():
         if b == "Hips.loc":
             arm.pose.bones["Hips"].location = v
         else:
-            arm.pose.bones[b].rotation_euler = tuple(R(a) for a in v)
+            arm.pose.bones[b].rotation_quaternion = Euler(tuple(R(a) for a in v), "XYZ").to_quaternion()
 
 def make_action(name, keys, loop=True):
     """keys: list of (frame, pose). Every bone is keyed at every key frame."""
@@ -308,7 +310,7 @@ def make_action(name, keys, loop=True):
     for f, pose in keys:
         apply_pose(pose)
         for pb in arm.pose.bones:
-            pb.keyframe_insert("rotation_euler", frame=f)
+            pb.keyframe_insert("rotation_quaternion", frame=f)
         arm.pose.bones["Hips"].keyframe_insert("location", frame=f)
     action.frame_range = (keys[0][0], keys[-1][0])
     action.use_frame_range = True

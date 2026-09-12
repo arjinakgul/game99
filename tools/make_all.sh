@@ -12,11 +12,23 @@ $BLENDER -b --python tools/build_hero.py -- $EXTRA 2>&1 | grep -E "Hero mesh|Con
 echo "== retarget mocap"
 JOBS=""
 for f in assets/mocap/bandai/dataset-1_punch_normal_001.bvh:MocapPunch \
-         assets/mocap/bandai/dataset-1_punch_normal_002.bvh:MocapPunch2 \
-         assets/mocap/bandai/dataset-1_kick_normal_001.bvh:MocapKick; do
+         assets/mocap/bandai/dataset-1_kick_normal_001.bvh:MocapKick \
+         assets/mocap/motifect/muay_thai_guard_stance.bvh:MT_Guard \
+         assets/mocap/motifect/muay_thai_combination.bvh:MT_Combo:inplace \
+         assets/mocap/motifect/muay_thai_teep.bvh:MT_Teep \
+         assets/mocap/motifect/muay_thai_elbow_cut.bvh:MT_Elbow \
+         assets/mocap/motifect/muay_thai_push_kick_defense.bvh:MT_KickDefense \
+         assets/mocap/motifect/tkd_front_kick_high.bvh:TKD_FrontKick \
+         assets/mocap/motifect/muay_thai_roundhouse.bvh:MT_Roundhouse \
+         assets/mocap/motifect/judo_hip_throw.bvh:Judo_HipThrow; do
   [ -f "${f%%:*}" ] && JOBS="$JOBS $f"
 done
 $BLENDER -b assets/characters/hero/hero.blend --python tools/retarget_bvh.py -- $JOBS 2>&1 | grep -E "^\[|WARN unmapped|DONE|Traceback|line [0-9]+"
+
+echo "== mocap contact sheet"
+[ -z "$EXTRA" ] && $BLENDER -b assets/characters/hero/hero.blend --python tools/render_sheet.py -- \
+  renders/hero_mocap.png --fight MocapPunch:115 MocapKick:327 MT_Guard:150 MT_Combo:99 MT_Teep:26 \
+  MT_Elbow:19 MT_KickDefense:27 TKD_FrontKick:19 MT_Roundhouse:79 Judo_HipThrow:34 2>&1 | grep -E "Sheet|Traceback"
 
 echo "== sync to Godot"
 cp assets/exports/hero.glb game-godot/assets/hero.glb

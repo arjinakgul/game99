@@ -41,7 +41,8 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] Prosedürel wing chun klipleri: Stance, ChainPunch, FrontKick, BongSau, TanSau, PakSau, Hit
 - [x] BVH retarget scripti (`tools/retarget_bvh.py`), Bandai punch/kick ile test
 - [x] v3 tasarım: imza öğeleri (merkez hat, asimetrik sargı, top-knot, gözler), fight mode (HoodUp/HoodDown objeleri)
-- [ ] Motifect paketi (kullanıcı yükleyecek) → retarget → oyun içi aday klipler
+- [x] Motifect paketi yüklendi; 8 klip retarget edildi (MT_Guard, MT_Combo, MT_Teep, MT_Elbow, MT_KickDefense, TKD_FrontKick, MT_Roundhouse, Judo_HipThrow)
+- [ ] Klip seçimi: hangi mocap klipleri oyunda kalacak, hangileri prosedürel WC klipleriyle harmanlanacak
 - [ ] Run + Jump
 - [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)
 

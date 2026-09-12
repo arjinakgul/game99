@@ -10,7 +10,8 @@ orientation from two vectors (up + left-right), other bones get swing only.
 
 Usage:
   blender -b assets/characters/hero/hero.blend --python tools/retarget_bvh.py -- \
-      <file.bvh>:<ClipName> [<file.bvh>:<ClipName> ...] [--render] [--no-export]
+      <file.bvh>:<ClipName>[:inplace] ... [--render] [--no-export]
+  ":inplace" drops the horizontal root motion (keeps hips height) for gameplay clips.
 """
 import bpy, math, os, sys
 from mathutils import Matrix, Vector, Quaternion
@@ -21,7 +22,7 @@ RENDER_DIR = os.path.join(ROOT, "renders")
 CHAR_BLEND = os.path.join(ROOT, "assets", "characters", "hero", "hero.blend")
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-jobs = [a.split(":", 1) for a in argv if not a.startswith("--")]
+jobs = [(a.split(":")[0], a.split(":")[1], "inplace" in a.split(":")[2:]) for a in argv if not a.startswith("--")]
 DO_RENDER = "--render" in argv
 DO_EXPORT = "--no-export" not in argv
 
@@ -67,7 +68,20 @@ ORDER = ["Hips", "Spine", "Chest", "Neck", "Head"] + [
 hero = bpy.data.objects["HeroRig"]
 scene = bpy.context.scene
 
+# Motifect (motifect.io) skeleton: Mixamo-like names but LeftLeg = UPPER leg, LeftShin = lower leg
+MOTIFECT_MAP = {
+    "Hips": "Hips", "Spine": "Spine1", "Chest": "Chest", "Neck": "Neck1", "Head": "Head",
+    "LeftShoulder": "LeftShoulder", "LeftUpperArm": "LeftArm", "LeftLowerArm": "LeftForeArm",
+    "LeftHand": "LeftHand", "LeftUpperLeg": "LeftLeg", "LeftLowerLeg": "LeftShin",
+    "LeftFoot": "LeftFoot", "LeftToes": "LeftToeBase",
+}
+for k in list(MOTIFECT_MAP):
+    if k.startswith("Left"):
+        MOTIFECT_MAP["Right" + k[4:]] = MOTIFECT_MAP[k].replace("Left", "Right")
+
 def resolve(src_arm):
+    if "LeftShin" in src_arm.pose.bones:
+        return {hb: sb for hb, sb in MOTIFECT_MAP.items() if sb in src_arm.pose.bones}
     m = {}
     for hb, cands in NAME_MAPS.items():
         for c in cands:
@@ -82,7 +96,7 @@ def src_pos(src_arm, mapping, key):
         return None
     return src_arm.matrix_world @ src_arm.pose.bones[mapping[key]].head
 
-def retarget_clip(bvh_path, clip):
+def retarget_clip(bvh_path, clip, in_place=False):
     before = set(bpy.data.objects)
     bpy.ops.import_anim.bvh(filepath=bvh_path, global_scale=0.01, frame_start=1,
                             use_fps_scale=False, update_scene_fps=False,
@@ -171,6 +185,8 @@ def retarget_clip(bvh_path, clip):
             pb.rotation_quaternion = basis.to_quaternion()
             if hb == "Hips":
                 dpos = (P["Hips"] - hip0) * scale
+                if in_place:
+                    dpos.x = dpos.y = 0.0
                 pb.location = rest.inverted() @ dpos
             bpy.context.view_layer.update()
         for hb in ORDER:
@@ -191,14 +207,12 @@ def retarget_clip(bvh_path, clip):
     bpy.data.armatures.remove(src_data)
     if src_action:
         bpy.data.actions.remove(src_action)      # otherwise the exporter writes it as a junk clip
-    for pb in hero.pose.bones:
-        pb.rotation_mode = "XYZ"
     return nframes
 
-for bvh, clip in jobs:
+for bvh, clip, in_place in jobs:
     if not os.path.isabs(bvh):
         bvh = os.path.join(ROOT, bvh)
-    n = retarget_clip(bvh, clip)
+    n = retarget_clip(bvh, clip, in_place)
     if DO_RENDER:
         scene.render.engine = "BLENDER_EEVEE"
         scene.render.resolution_x, scene.render.resolution_y = 480, 600
@@ -222,4 +236,4 @@ if DO_EXPORT:
         filepath=os.path.join(EXPORT_DIR, "hero.glb"), export_format="GLB", use_selection=True,
         export_animations=True, export_animation_mode="ACTIONS", export_yup=True,
         export_apply=True, export_skins=True, export_def_bones=False)
-print("DONE retarget:", [c for _, c in jobs])
+print("DONE retarget:", [j[1] for j in jobs])
