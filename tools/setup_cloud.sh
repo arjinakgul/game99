@@ -3,7 +3,7 @@
 # Run once per fresh container:  bash tools/setup_cloud.sh
 set -euo pipefail
 
-BLENDER_VER="${BLENDER_VER:-5.1.2}"
+BLENDER_VER="${BLENDER_VER:-5.2.1}"
 GODOT_VER="${GODOT_VER:-4.7.2}"
 TMP="${TMPDIR:-/tmp}/game99-setup"; mkdir -p "$TMP"
 

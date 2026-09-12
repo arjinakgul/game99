@@ -27,7 +27,7 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 ## Fazlar
 
 ### Faz 0 — Ortam (TAMAMLANDI)
-- [x] Blender 5.1.2 headless çalışıyor (`tools/setup_cloud.sh`)
+- [x] Blender 5.2.1 LTS headless çalışıyor (`tools/setup_cloud.sh`)
 - [x] Godot 4.7.2 headless import/run çalışıyor
 - [x] Blender → .glb → Godot döngüsü animasyonla doğrulandı
 
