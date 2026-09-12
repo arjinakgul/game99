@@ -52,10 +52,12 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [ ] Run + Jump
 - [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)
 
-### Faz 2 — Dünya + kontrol
-- [ ] Godot: CharacterBody3D ile 3. şahıs kontrol (WASD + kamera)
-- [ ] Basit test dünyası: zemin, birkaç engel, ışık, gökyüzü
-- [ ] AnimationTree ile hareket-animasyon geçişleri
+### Faz 2 — Dünya + kontrol (İLK SÜRÜM)
+- [x] `player.tscn`/`player.gd`: CharacterBody3D, kamera-göreli hareket, yürüme/koşma, zıplama, SpringArm kamera (fare ile orbit)
+- [x] `world.tscn`: zemin, kasalar, gökyüzü, sis, ışık; ana sahne
+- [x] Durum makinesi (script): idle=Stance, walk=MeshyWalk, run=MeshyRun, attack=ChainPunch, kick=MT_Teep, block=BongSau; F = fight mode
+- [x] `smoke_test.gd`: headless test (yürü/koş/saldır/tekme/idle) — `godot --headless --path game-godot --script smoke_test.gd`
+- [ ] Zıplama klibi, AnimationTree ile blend (yürüme↔koşma), kamera çarpışma ayarı, ayak kayması kontrolü (kullanıcı makinesinde)
 
 ### Faz 3 — Dövüş, fight mode ve etkileşim
 - [ ] Fight mode (kapüşon kapalı) mekaniği: odak sayacı, hız/hasar boost, geçiş animasyonu

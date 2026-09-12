@@ -202,7 +202,9 @@ else:
         n = 0
         for v in me.vertices:
             c = v.co
-            if 0.60 * H < c.z < 0.75 * H and (c.y > 0.015 * H or abs(c.x) > 0.075 * H):
+            shoulder_band = 0.60 * H < c.z < 0.75 * H and (c.y > 0.015 * H or abs(c.x) > 0.075 * H)
+            hood_flaps = 0.75 * H <= c.z < 0.88 * H and (abs(c.x) > 0.11 * H or c.y > 0.06 * H)
+            if shoulder_band or hood_flaps:
                 for g in list(v.groups):
                     body.vertex_groups[g.group].remove([v.index])
                 groups["Chest"].add([v.index], 1.0, "REPLACE"); n += 1

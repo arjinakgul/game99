@@ -1,0 +1,34 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://player.gd" id="1_player"]
+[ext_resource type="Script" path="res://hero.gd" id="2_hero"]
+[ext_resource type="PackedScene" path="res://assets/hero_meshy.glb" id="3_up"]
+[ext_resource type="PackedScene" path="res://assets/hero_meshy_hooddown.glb" id="4_down"]
+
+[sub_resource type="CapsuleShape3D" id="capsule"]
+radius = 0.3
+height = 1.5
+
+[node name="Player" type="CharacterBody3D"]
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("capsule")
+
+[node name="Hero" type="Node3D" parent="."]
+script = ExtResource("2_hero")
+
+[node name="HoodUp" parent="Hero" instance=ExtResource("3_up")]
+
+[node name="HoodDown" parent="Hero" instance=ExtResource("4_down")]
+
+[node name="CameraPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraPivot"]
+spring_length = 3.5
+margin = 0.2
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/SpringArm3D"]
+fov = 60.0
