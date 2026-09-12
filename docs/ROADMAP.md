@@ -42,7 +42,9 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] BVH retarget scripti (`tools/retarget_bvh.py`), Bandai punch/kick ile test
 - [x] v3 tasarım: imza öğeleri (merkez hat, asimetrik sargı, top-knot, gözler), fight mode (HoodUp/HoodDown objeleri)
 - [x] Motifect paketi yüklendi; 8 klip retarget edildi (MT_Guard, MT_Combo, MT_Teep, MT_Elbow, MT_KickDefense, TKD_FrontKick, MT_Roundhouse, Judo_HipThrow)
+- [x] v4 gövde: CC0 Blender Studio base mesh parçaları, dövüşçü oranları, rijit parça bağlama (docs/CHARACTER.md)
 - [ ] Klip seçimi: hangi mocap klipleri oyunda kalacak, hangileri prosedürel WC klipleriyle harmanlanacak
+- [ ] v4 cilası: eklem boşlukları (diz/dirsek) için eklem küreleri veya yumuşak ağırlık, hoodie hem/cep detayı
 - [ ] Run + Jump
 - [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)
 

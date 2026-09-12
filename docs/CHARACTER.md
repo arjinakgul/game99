@@ -30,6 +30,22 @@
 - Duruş: Yee Jee Kim Yeung Ma (içe dönük ayaklar, dizler kapalı), eller centerline'da Man Sau / Wu Sau
 - Siluet: kompakt, dirsekler içeride; abartılı kas yok
 
+## Gövde kaynağı (v4): Blender Studio Human Base Meshes (CC0)
+- Paket: https://www.blender.org/download/demo-files/ → "Human Base Meshes Bundle v1.4.1" (CC0, atıf gerekmez)
+- Kullanılan koleksiyon: "Body Male – Primitive (Stylized)" — 49 blok parça (göğüs, pelvis, omuz, kollar, parmaklı eller,
+  ayaklar, kafa, göz, göz kapağı, burun, kulak). `tools/extract_base_mesh.py` ile
+  `assets/characters/hero/base_male_primitive_stylized.blend` (175 KB) olarak repoya alındı.
+- `build_hero.py` parçaları ekler, subsurf seviyesini uygular (`HERO_SUBSURF`, varsayılan 0 = köşeli low-poly, 1 = yumuşak),
+  her parçaya materyal atar, birleştirir ve **vertex bandı deformasyonu** ile dövüşçü oranları verir:
+  omuz/göğüs bandı x·1.16, boyun ·1.22, kollar ·1.28, ayaklar ·1.12.
+- Bağlama: her parça tek kemiğe **rijit** vertex grubu (blok parçalar mankеn gibi eklemden döner; otomatik ağırlık
+  parmak gibi küçük kapalı parçalarda başarısız oluyordu). Eklem pivotları parçaların yuvarlak uçlarının merkezinde.
+- Tuzak: aynalı parçalar (.L/.R) aynı mesh verisini paylaşır; vertex grubu eklemeden önce `data.copy()` şart.
+  Negatif ölçekli aynalar için birleştirme sonrası normaller yeniden hesaplanır.
+- Kol kemikleri A-pozunda eğik olduğundan roll `GLOBAL_POS_Y` ile sabitlenir (eski dik kol ekseniyle aynı konvansiyon)
+  ve tüm UpperArm pozlarına `ARM_REST_FIX` (14°) içe roll eklenir.
+- Gözler: küre parçası; ön yüzler koyu iris, geri kalanı beyaz. Saç: kafa üstü/arkası "undercut" + tepede top-knot küresi.
+
 ## Rig eksen notları (prosedürel poz yazarken)
 Blender XYZ euler: önce X, sonra Y, sonra Z; hepsi kemiğin **rest** eksenleri etrafında.
 Uzuv kemikleri aşağı bakar (lokal Y = dünya -Z):

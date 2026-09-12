@@ -20,7 +20,7 @@ GPU olmadığı için Blender EEVEE, Mesa'nın yazılım OpenGL'i (llvmpipe) üz
 ama önizleme için yeterlidir. Final render için Cycles (CPU) kullanılabilir.
 
 ## Mevcut durum
-- `tools/build_hero.py` → `assets/characters/hero/hero.blend`: stilize low-poly wing chun dövüşçüsü, 19 kemikli
+- `tools/build_hero.py` → `assets/characters/hero/hero.blend`: CC0 base mesh parçalarından kurulan stilize wing chun dövüşçüsü, 19 kemikli
   Godot-humanoid rig, prosedürel klipler (Stance, Walk, ChainPunch, FrontKick, BongSau, TanSau, PakSau, Hit)
 - `tools/retarget_bvh.py`: BVH mocap → hero rig (Bandai test klipleri: MocapPunch, MocapPunch2, MocapKick)
 - `assets/exports/hero.glb` → `game-godot/assets/hero.glb`; Godot Stance klibini döngüde oynatıyor

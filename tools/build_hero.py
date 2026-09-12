@@ -63,31 +63,9 @@ def flat_material(name, rgb, rough=0.85):
 MATS = {k: flat_material(k, v) for k, v in PALETTE.items()}
 MAT_INDEX = {k: i for i, k in enumerate(PALETTE)}
 
-# ------------------------------------------------- skin skeleton (Z up, -Y = front)
-J = {}
-def joint(name, pos, r, parent=None):
-    J[name] = (Vector(pos), r, parent)
 
-joint("Hips",    (0, 0, 0.96), 0.16)
-joint("Spine",   (0, 0, 1.12), 0.15,  "Hips")
-joint("Chest",   (0, 0, 1.30), 0.175, "Spine")
-joint("Neck",    (0, 0, 1.47), 0.08,  "Chest")
-joint("Head",    (0, 0, 1.585), 0.15, "Neck")
-joint("HeadTop", (0, 0, 1.74), 0.115, "Head")
-joint("Bun",     (0, 0.05, 1.80), 0.045, "HeadTop")   # top-knot
-for side, sx in (("Left", 1), ("Right", -1)):
-    joint(f"{side}Shoulder", (sx*0.17, 0, 1.42), 0.085, "Chest")
-    joint(f"{side}UpperArm", (sx*0.26, 0, 1.38), 0.075, f"{side}Shoulder")
-    joint(f"{side}LowerArm", (sx*0.30, 0, 1.13), 0.065, f"{side}UpperArm")
-    joint(f"{side}Hand",     (sx*0.32, 0, 0.90), 0.05,  f"{side}LowerArm")
-    joint(f"{side}HandTip",  (sx*0.32, 0, 0.82), 0.055, f"{side}Hand")
-    joint(f"{side}UpperLeg", (sx*0.10, 0, 0.92), 0.105, "Hips")
-    joint(f"{side}LowerLeg", (sx*0.11, 0, 0.52), 0.085, f"{side}UpperLeg")
-    joint(f"{side}Foot",     (sx*0.11, 0, 0.10), 0.065, f"{side}LowerLeg")
-    joint(f"{side}Toes",     (sx*0.11, -0.14, 0.05), 0.06, f"{side}Foot")
-
-def skin_object(name, joints, root, solidify=None):
-    """joints: {name: (pos, radius, parent)} -> low-poly skinned blob object."""
+def skin_object(name, joints, root):
+    """joints: {name: (pos, radius, parent)} -> low-poly skinned blob object (hood variants)."""
     names = list(joints)
     verts = [joints[n][0] for n in names]
     edges = [(names.index(joints[n][2]), i) for i, n in enumerate(names) if joints[n][2]]
@@ -115,10 +93,135 @@ def skin_object(name, joints, root, solidify=None):
     ob.data.shade_flat()
     return ob
 
-body = skin_object("Hero", J, "Hips")
-mesh = body.data
+# ------------------------------------------------- body from CC0 base mesh parts
+# Blender Studio "Human Base Meshes" bundle (CC0) -> "Body Male - Primitive (Stylized)"
+# extracted by tools/extract_base_mesh.py into base_male_primitive_stylized.blend.
+SUBSURF_LEVEL = int(os.environ.get("HERO_SUBSURF", "0"))
+LIB = os.path.join(CHAR_DIR, "base_male_primitive_stylized.blend")
+with bpy.data.libraries.load(LIB, link=False) as (src, dst):
+    dst.collections = ["BaseMalePrimitiveStylized"]
+base_col = dst.collections[0]
+scene.collection.children.link(base_col)
+bpy.context.view_layer.update()            # evaluate parent chains before reading matrix_world
+parts = [o for o in base_col.all_objects if o.type == "MESH"]
 
-# eyes: two narrow slits on the face (joined into the body, weighted to Head)
+def part_kind(name):
+    n = name.replace("GEO-", "").replace("_male_primitive_stylized", "")
+    return n  # e.g. "chest", "arm_lower.L", "finger_index.R", "eye.L"
+
+# world-space bounds per part (before joining) -> rig joints + region rules
+def wbounds(ob):
+    bb = [ob.matrix_world @ Vector(c) for c in ob.bound_box]
+    lo = Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))
+    hi = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
+    return lo, hi
+PB = {part_kind(o.name): wbounds(o) for o in parts}
+allo = Vector((min(b[0].x for b in PB.values()), 0, min(b[0].z for b in PB.values())))
+allhi = Vector((max(b[1].x for b in PB.values()), 0, 0))
+OFFSET = Vector((-(allo.x + allhi.x) / 2, 0, -allo.z))     # centre on X, feet on Z=0
+PB = {k: (lo + OFFSET, hi + OFFSET) for k, (lo, hi) in PB.items()}
+def pc(k):            # part centre
+    lo, hi = PB[k]; return (lo + hi) / 2
+
+# per-part base material (refined per-face below)
+def part_material(kind):
+    k = kind.split(".")[0]
+    if k in ("eye",): return "Eye"
+    if k in ("head", "neck", "nose", "nose_bridge", "ear", "eyelid_upper", "eyelid_lower"): return "Skin"
+    if k in ("hand", "thumb") or k.startswith("finger"): return "Wrap"
+    if k in ("foot",) or k.startswith("toe"): return "Sneaker"
+    if k in ("leg_upper", "leg_lower", "pelvis"): return "Joggers"
+    return "Hoodie"       # chest, belly, pelvis, shoulder, arm_upper, arm_lower
+
+def part_bone(kind):
+    k, _, side = kind.partition(".")
+    S = "Left" if side == "L" else "Right" if side == "R" else ""
+    if k in ("pelvis",): return "Hips"
+    if k in ("belly",): return "Spine"
+    if k in ("chest",): return "Chest"
+    if k in ("neck",): return "Neck"
+    if k in ("head", "nose", "nose_bridge", "ear", "eye", "eyelid_upper", "eyelid_lower"): return "Head"
+    if k == "shoulder": return f"{S}Shoulder"
+    if k == "arm_upper": return f"{S}UpperArm"
+    if k == "arm_lower": return f"{S}LowerArm"
+    if k in ("hand", "thumb") or k.startswith("finger"): return f"{S}Hand"
+    if k == "leg_upper": return f"{S}UpperLeg"
+    if k == "leg_lower": return f"{S}LowerLeg"
+    if k == "foot" or k.startswith("toe"): return f"{S}Foot"
+    raise KeyError(kind)
+
+def rigid_group(ob, bone):
+    vg = ob.vertex_groups.new(name=bone)
+    vg.add(list(range(len(ob.data.vertices))), 1.0, "REPLACE")
+
+bpy.ops.object.select_all(action="DESELECT")
+for o in parts:
+    if o.data.users > 1:                     # mirrored parts share mesh data; groups live on the mesh
+        o.data = o.data.copy()
+    rigid_group(o, part_bone(part_kind(o.name)))
+    for m in list(o.modifiers):
+        if m.type == "SUBSURF":
+            if SUBSURF_LEVEL == 0:
+                o.modifiers.remove(m)
+            else:
+                m.levels = SUBSURF_LEVEL
+    o.data.materials.clear()
+    for mname in PALETTE:
+        o.data.materials.append(MATS[mname])
+    mi = MAT_INDEX[part_material(part_kind(o.name))]
+    for pl in o.data.polygons:
+        pl.material_index = mi
+    o.select_set(True)
+bpy.context.view_layer.objects.active = parts[0]
+bpy.ops.object.convert(target="MESH")          # apply subsurf, keep world transforms
+bpy.ops.object.join()
+body = bpy.context.active_object
+body.name = "Hero"
+bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+bpy.ops.object.mode_set(mode="EDIT")            # mirrored (negative-scale) parts: fix normals
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.mesh.normals_make_consistent(inside=False)
+bpy.ops.object.mode_set(mode="OBJECT")
+mesh = body.data
+for v in mesh.vertices:
+    v.co += OFFSET
+scene.collection.objects.link(body)
+bpy.data.collections.remove(base_col)
+
+# ---- fighter proportions: smooth vertex-band deformation (no topology change)
+def smooth01(t):
+    t = max(0.0, min(1.0, t)); return t * t * (3 - 2 * t)
+shoulder_z = pc("shoulder.L").z
+for v in mesh.vertices:
+    x, y, z = v.co
+    # broaden shoulders/chest: peak at shoulder height, fades to waist/neck
+    w = smooth01(1 - abs(z - shoulder_z) / 0.28)
+    v.co.x = x * (1 + 0.16 * w)
+    # thicker neck
+    if 1.38 < z < 1.55 and abs(x) < 0.12:
+        v.co.x *= 1.22; v.co.y = (y - 0.02) * 1.22 + 0.02
+    # thicker arms below the shoulder (about each arm's own axis), bigger hands
+    if abs(x) > 0.20 and z < 1.36:
+        side = 1 if x > 0 else -1
+        for k in ("arm_upper", "arm_lower", "hand"):
+            lo, hi = PB[f"{k}.{'L' if side > 0 else 'R'}"]
+            if lo.z - 0.02 <= z <= hi.z + 0.02:
+                c = (lo + hi) / 2
+                f = 1.28 if k != "hand" else 1.05
+                v.co.x = c.x + (v.co.x - c.x) * f
+                v.co.y = c.y + (y - c.y) * f
+                break
+    # slightly bigger feet (sneakers)
+    if z < 0.13:
+        v.co.x *= 1.12
+        v.co.y = -0.03 + (y + 0.03) * 1.10
+# re-measure after deformation for the rig
+def measure(kind_prefix):
+    vs = [v.co for v in mesh.vertices]
+    return vs
+mesh.shade_flat()
+
+# top-knot + eyes are part of the base mesh; add the chest centreline slab
 def add_box(name, size, loc, mat):
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
     ob = bpy.context.active_object
@@ -130,84 +233,119 @@ def add_box(name, size, loc, mat):
     for pl in ob.data.polygons:
         pl.material_index = MAT_INDEX[mat]
     return ob
-eyes = [add_box(f"Eye{i}", (0.034, 0.02, 0.014), (sx * 0.036, -0.097, 1.615), "Eye")
-        for i, sx in ((0, 1), (1, -1))]
-# centreline stripe on the chest (wing chun "centre line" motif) as a thin slab
-eyes.append(add_box("Centreline", (0.022, 0.02, 0.24), (0, -0.10, 1.30), "Signal"))
+chest_lo, chest_hi = PB["chest"]
+chest_front = chest_lo.y
+extras = [add_box("Centreline", (0.022, 0.02, chest_hi.z - chest_lo.z - 0.06), (0, chest_front + 0.004, pc("chest").z), "Signal")]
+rigid_group(extras[0], "Chest")
+bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=0.045, location=(0, pc("head").y + 0.05, PB["head"][1].z - 0.01))
+bun = bpy.context.active_object; bun.name = "TopKnot"
+for m in PALETTE: bun.data.materials.append(MATS[m])
+for pl in bun.data.polygons: pl.material_index = MAT_INDEX["Hair"]
+bun.data.shade_flat()
+rigid_group(bun, "Head")
+extras.append(bun)
 
-# ------------------------------------------------ region-based flat materials
-def region(c: Vector) -> str:
-    x, y, z = abs(c.x), c.y, c.z
-    if z < 0.045: return "Sole"
-    if z < 0.135: return "Sneaker"
-    if z < 0.20:  return "Signal"                       # jogger cuffs
-    if x > 0.20 and z > 0.78:                           # arms
-        if z < 0.97: return "Wrap"                      # hands
-        if c.x > 0 and z < 1.16: return "Wrap"          # LEFT forearm fully wrapped (signature)
-        if c.x > 0 and z < 1.20: return "Signal"        # tape band at the elbow
+# ---- per-face refinements on the joined body
+head_lo, head_hi = PB["head"]
+hand_top = max(PB["hand.L"][1].z, PB["hand.R"][1].z)
+def refine(poly):
+    c = poly.center; x, y, z = abs(c.x), c.y, c.z
+    cur = mesh.materials[poly.material_index].name
+    if cur == "Sneaker":
+        return "Sole" if (poly.normal.z < -0.6 and z < 0.035) else "Sneaker"
+    if cur == "Joggers":
+        if z < 0.20: return "Signal"                                   # cuffs
+        side = 1 if c.x > 0 else -1
+        if poly.normal.x * side > 0.85 and 0.25 < z < 0.90: return "Stripe"   # outer-leg stripe
+        return "Joggers"
+    if cur == "Hoodie":
+        if x > 0.22 and z < hand_top + 0.02: return "Wrap"              # wrist overlap
+        if c.x > 0.22 and z < 1.20 and z > hand_top: return "Wrap" if z < 1.16 else "Signal"   # LEFT forearm wrap + tape
+        if y < chest_front + 0.03 and x < 0.11 and 1.00 < z < 1.14: return "Pocket"
         return "Hoodie"
-    if z > 1.76 and y > 0.0: return "Hair"              # top-knot
-    if z > 1.53:                                        # head
-        if z > 1.66 or (y > 0.0 and z > 1.56): return "Hair"
+    if cur == "Eye":
+        return "Eye" if poly.normal.y < -0.6 else "Stripe"                 # iris / white
+    if cur == "Skin":
+        if z > head_lo.z + 0.17 or (y > 0.02 and z > head_lo.z + 0.10): return "Hair"   # undercut
+        if x < 0.05 and y < head_lo.y + 0.10 and 1.55 < z < 1.60: return "Skin"
         return "Skin"
-    if z > 1.46: return "Skin"                          # neck
-    if z > 0.95:
-        if y < -0.06 and 1.02 < z < 1.16: return "Pocket"
-        return "Hoodie"
-    if x > 0.185 and abs(c.y) < 0.04 and 0.22 < z < 0.92: return "Stripe"  # outer-leg stripe
-    return "Joggers"
+    return cur
 for poly in mesh.polygons:
-    poly.material_index = MAT_INDEX[region(poly.center)]
+    poly.material_index = MAT_INDEX[refine(poly)]
+
 bpy.ops.object.select_all(action="DESELECT")
-for e in eyes:
+for e in extras:
     e.select_set(True)
 body.select_set(True)
 bpy.context.view_layer.objects.active = body
 bpy.ops.object.join()
 mesh = body.data
-print(f"Hero mesh: {len(mesh.vertices)} verts, {len(mesh.polygons)} faces")
+print(f"Hero mesh: {len(mesh.vertices)} verts, {len(mesh.polygons)} faces (subsurf {SUBSURF_LEVEL})")
 
 # ---------------------------------------------------------- hood variants
+hc = pc("head"); hr = (head_hi.x - head_lo.x) / 2
 HD = {}
-HD["A"] = (Vector((0, 0.03, 1.46)), 0.06, None)
-HD["B"] = (Vector((0, 0.12, 1.50)), 0.10, "A")
-HD["C"] = (Vector((0, 0.15, 1.42)), 0.075, "B")
+HD["A"] = (Vector((0, hc.y + 0.05, head_lo.z - 0.04)), 0.06, None)
+HD["B"] = (Vector((0, hc.y + 0.13, head_lo.z - 0.01)), 0.10, "A")
+HD["C"] = (Vector((0, hc.y + 0.16, head_lo.z - 0.09)), 0.075, "B")
 hood_down = skin_object("HoodDown", HD, "A")
 for pl in hood_down.data.polygons:
-    pl.material_index = MAT_INDEX["Signal" if pl.normal.z > 0.45 else "Hoodie"]   # lining peeks out on top
+    pl.material_index = MAT_INDEX["Signal" if pl.normal.z > 0.45 else "Hoodie"]
 
 HU = {}
-HU["A"] = (Vector((0, 0.03, 1.50)), 0.095, None)
-HU["B"] = (Vector((0, 0.03, 1.60)), 0.185, "A")
-HU["C"] = (Vector((0, 0.03, 1.72)), 0.175, "B")
-HU["D"] = (Vector((0, 0.00, 1.84)), 0.11, "C")
+HU["A"] = (Vector((0, hc.y + 0.02, head_lo.z + 0.02)), hr * 0.85, None)
+HU["B"] = (Vector((0, hc.y + 0.02, hc.z)),             hr * 1.55, "A")
+HU["C"] = (Vector((0, hc.y + 0.02, hc.z + 0.11)),      hr * 1.45, "B")
+HU["D"] = (Vector((0, hc.y - 0.01, head_hi.z + 0.07)), hr * 0.9, "C")
 hood_up = skin_object("HoodUp", HU, "A")
-# open the face: remove front faces at face height
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.select_all(action="DESELECT")
-bpy.ops.object.mode_set(mode="OBJECT")
+bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.select_all(action="DESELECT"); bpy.ops.object.mode_set(mode="OBJECT")
 for pl in hood_up.data.polygons:
     c = pl.center
-    pl.select = (c.y < -0.09 and 1.50 < c.z < 1.72 and abs(c.x) < 0.13)
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.delete(type="FACE")
-bpy.ops.object.mode_set(mode="OBJECT")
+    pl.select = (pl.normal.y < -0.55 and head_lo.z + 0.03 < c.z < hc.z + 0.13)
+bpy.ops.object.mode_set(mode="EDIT"); bpy.ops.mesh.delete(type="FACE"); bpy.ops.object.mode_set(mode="OBJECT")
 for pl in hood_up.data.polygons:
     c = pl.center
-    pl.material_index = MAT_INDEX["Signal" if (c.y < -0.04 and 1.47 < c.z < 1.76) else "Hoodie"]
+    pl.material_index = MAT_INDEX["Signal" if (c.y < hc.y - 0.03 and head_lo.z < c.z < head_hi.z + 0.02) else "Hoodie"]
 sol = hood_up.modifiers.new("Solidify", "SOLIDIFY")
-sol.thickness = 0.02
-sol.offset = -1.0
-sol.use_rim = True
-sol.material_offset = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]      # inner wall = orange lining
-sol.material_offset_rim = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]
+sol.thickness = 0.02; sol.offset = -1.0; sol.use_rim = True
+sol.material_offset = sol.material_offset_rim = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]
 bpy.ops.object.modifier_apply(modifier="Solidify")
-mask = add_box("Mask", (0.17, 0.05, 0.075), (0, -0.085, 1.56), "Mask")
+mask = add_box("Mask", (hr * 1.9, 0.05, 0.085), (0, head_lo.y + 0.06, hc.z - 0.085), "Mask")
 bpy.ops.object.select_all(action="DESELECT")
 mask.select_set(True); hood_up.select_set(True)
 bpy.context.view_layer.objects.active = hood_up
 bpy.ops.object.join()
+rigid_group(hood_up, "Head")
+rigid_group(hood_down, "Chest")
 MESHES = [body, hood_down, hood_up]
+
+# ---------------------------------------------------------- rig joints from parts
+def jz(k, frac):      # z at fraction of a part's height
+    lo, hi = PB[k]; return lo.z + (hi.z - lo.z) * frac
+def jtop(k):          # centre of a part's rounded top end (rigid-binding pivot)
+    lo, hi = PB[k]; return hi.z - 0.45 * min(hi.x - lo.x, hi.y - lo.y)
+J = {}
+def joint(name, pos, r=0.05, parent=None): J[name] = (Vector(pos), r, parent)
+sx_scale = 1.16       # shoulders were widened
+joint("Hips",    (0, pc("pelvis").y, jz("pelvis", 0.55)))
+joint("Spine",   (0, pc("belly").y, jz("belly", 0.45)))
+joint("Chest",   (0, pc("chest").y, jz("chest", 0.35)))
+joint("Neck",    (0, pc("neck").y, jz("neck", 0.15)))
+joint("Head",    (0, pc("head").y - 0.01, jz("head", 0.18)))
+joint("HeadTop", (0, pc("head").y - 0.01, head_hi.z))
+for side, S in (("Left", "L"), ("Right", "R")):
+    sh, ua, la, hd = pc(f"shoulder.{S}"), pc(f"arm_upper.{S}"), pc(f"arm_lower.{S}"), pc(f"hand.{S}")
+    joint(f"{side}Shoulder", (sh.x * 0.55 * sx_scale, sh.y, sh.z + 0.02))
+    joint(f"{side}UpperArm", (ua.x * 0.86 * sx_scale, ua.y, jtop(f"arm_upper.{S}")))
+    joint(f"{side}LowerArm", (la.x * sx_scale, la.y, jtop(f"arm_lower.{S}")))
+    joint(f"{side}Hand",     (hd.x * sx_scale, hd.y, jtop(f"hand.{S}") + 0.02))
+    joint(f"{side}HandTip",  (hd.x * sx_scale, hd.y - 0.02, PB[f"finger_middle.{S}"][0].z))
+    ul, ll, ft = pc(f"leg_upper.{S}"), pc(f"leg_lower.{S}"), pc(f"foot.{S}")
+    joint(f"{side}UpperLeg", (ul.x, ul.y, jtop(f"leg_upper.{S}")))
+    joint(f"{side}LowerLeg", (ll.x, ll.y, jtop(f"leg_lower.{S}")))
+    joint(f"{side}Foot",     (ft.x * 1.12, ft.y, jz(f"foot.{S}", 0.55)))
+    joint(f"{side}Toes",     (ft.x * 1.12, PB[f"toe_big.{S}"][0].y, 0.02))
+print("joints:", {k: [round(v, 2) for v in J[k][0]] for k in ("Hips", "Chest", "Head", "LeftUpperArm", "LeftLowerArm", "LeftHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot")})
 
 # ---------------------------------------------------------------- armature
 bpy.ops.object.armature_add(enter_editmode=True, location=(0, 0, 0))
@@ -238,13 +376,18 @@ for name, h, t, parent in BONES:
     if parent:
         b.parent = eb[parent]
         b.use_connect = (eb[parent].tail - b.head).length < 1e-4
+bpy.ops.armature.select_all(action="DESELECT")
+for b in eb:
+    b.select = b.select_head = b.select_tail = any(k in b.name for k in ("Arm", "Leg", "Hand"))
+bpy.ops.armature.calculate_roll(type="GLOBAL_POS_Y")
+bpy.ops.armature.select_all(action="DESELECT")
 bpy.ops.object.mode_set(mode="OBJECT")
 bpy.ops.object.select_all(action="DESELECT")
 for ob in MESHES:
     ob.select_set(True)
 arm.select_set(True)
 bpy.context.view_layer.objects.active = arm
-bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+bpy.ops.object.parent_set(type="ARMATURE_NAME")   # rigid per-part groups
 hood_up.hide_render = True     # default look: hood down
 
 # ------------------------------------------------------------- animation utils
@@ -288,6 +431,7 @@ PUNCH_R = {"RightUpperArm": (-85, -18, 0), "RightLowerArm": (-2, 0, 0), "RightHa
            "Chest": (4, 0, 6), "Head": (-2, 0, 0)}
 GUARD = {k: STANCE[k] for k in STANCE if "Arm" in k or "Hand" in k}
 
+ARM_REST_FIX = 14.0   # degrees of inward roll added to every UpperArm pose
 def apply_pose(pose):
     """Poses are authored as XYZ euler degrees but stored as quaternions so the
     whole rig (procedural + retargeted mocap) shares one rotation mode."""
@@ -299,6 +443,9 @@ def apply_pose(pose):
         if b == "Hips.loc":
             arm.pose.bones["Hips"].location = v
         else:
+            v = list(v)
+            if b.endswith("UpperArm"):            # base mesh rests in an A-pose: pull arms in
+                v[2] += ARM_REST_FIX if b.startswith("Left") else -ARM_REST_FIX
             arm.pose.bones[b].rotation_quaternion = Euler(tuple(R(a) for a in v), "XYZ").to_quaternion()
 
 def make_action(name, keys, loop=True):
