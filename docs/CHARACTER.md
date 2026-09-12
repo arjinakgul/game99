@@ -6,14 +6,27 @@
 - Palet: **distopik** — soluk/aşınmış koyu tonlar + tek sinyal rengi
   | Bölge | RGB (linear) | Not |
   |---|---|---|
-  | Hoodie | 0.13 0.13 0.145 | aşınmış kömür grisi |
-  | Kanguru cebi | 0.17 0.17 0.185 | bir ton açık |
-  | Jogger | 0.30 0.31 0.26 | solmuş zeytin-gri |
-  | Manşet/vurgu | 0.80 0.33 0.08 | hazard turuncusu (tek sinyal rengi) |
-  | El sargısı | 0.68 0.66 0.60 | kirli bandaj |
-  | Sneaker / taban | 0.09 0.09 0.10 / 0.62 0.60 0.55 | |
-  | Ten / saç | 0.78 0.62 0.52 / 0.10 0.08 0.07 | soluk ten, buzz-cut |
-- `--hood-up` bayrağı: kapüşon kapalı varyant (yalnızca materyal ataması değişir)
+  | Hoodie | 0.085 0.105 0.125 | mürekkep-petrol siyahı, aşınmış |
+  | Kanguru cebi | 0.115 0.135 0.155 | bir ton açık |
+  | Jogger | 0.34 0.31 0.27 | solmuş taupe |
+  | Bacak yan şeridi / sargılar | 0.66 0.64 0.58 | kemik beyazı |
+  | Sinyal rengi | 0.82 0.32 0.06 | hazard turuncusu: manşetler, merkez hat, kapüşon astarı, dirsek bandı |
+  | Sneaker / taban | 0.07 0.07 0.08 / 0.60 0.58 0.53 | |
+  | Ten / saç / göz | 0.78 0.62 0.52 / 0.10 0.08 0.07 / 0.04 0.04 0.05 | |
+  | Maske | 0.05 0.055 0.06 | fight mode |
+
+### İmza öğeleri (ikonik siluet için)
+1. **Merkez hat**: göğüste dikey turuncu şerit — wing chun'un "centerline" ilkesine gönderme
+2. **Asimetrik sargı**: sol ön kol (Man Sau kolu) dirseğe kadar bandajlı, dirsekte turuncu bant; sağ kol normal
+3. **Top-knot**: buzz-cut + tepede küçük topuz — kung fu mirasına sokak yorumu
+4. **Gözler**: iki dar koyu çizgi, kararlı bakış
+5. **Fight mode**: kapüşon kapalı + yüz maskesi; kapüşonun turuncu astarı yüzü çerçeveler
+
+### Fight mode (kapüşon kapalı) — oyun tasarımı notu
+- glb içinde iki ayrı skinli obje: `HoodDown` (normalde görünür) ve `HoodUp` (kapüşon + astar + maske)
+- Godot: `hero.gd` → `fight_mode` property görünürlükleri değiştirir
+- Oyun fikri: fight mode bir "odak" hali — chain punch hızı ve hasar artar, bir odak sayacı tükenir;
+  kapüşonu kapatma anı kısa bir animasyon + ses ile vurgulanır. Tasarımı Faz 3'te netleştireceğiz.
 - Duruş: Yee Jee Kim Yeung Ma (içe dönük ayaklar, dizler kapalı), eller centerline'da Man Sau / Wu Sau
 - Siluet: kompakt, dirsekler içeride; abartılı kas yok
 

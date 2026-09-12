@@ -40,6 +40,7 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] Konsept: sokak stili wing chun dövüşçüsü — hoodie, jogger, distopik palet (`docs/CHARACTER.md`)
 - [x] Prosedürel wing chun klipleri: Stance, ChainPunch, FrontKick, BongSau, TanSau, PakSau, Hit
 - [x] BVH retarget scripti (`tools/retarget_bvh.py`), Bandai punch/kick ile test
+- [x] v3 tasarım: imza öğeleri (merkez hat, asimetrik sargı, top-knot, gözler), fight mode (HoodUp/HoodDown objeleri)
 - [ ] Motifect paketi (kullanıcı yükleyecek) → retarget → oyun içi aday klipler
 - [ ] Run + Jump
 - [ ] Siluet: el/ayak şekli, omuz genişliği; yüz detayı (basit göz/ağız)
@@ -49,7 +50,8 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [ ] Basit test dünyası: zemin, birkaç engel, ışık, gökyüzü
 - [ ] AnimationTree ile hareket-animasyon geçişleri
 
-### Faz 3 — Silahlar ve etkileşim
+### Faz 3 — Dövüş, fight mode ve etkileşim
+- [ ] Fight mode (kapüşon kapalı) mekaniği: odak sayacı, hız/hasar boost, geçiş animasyonu
 - [ ] Blender'da 1-2 silah modeli, karaktere socket/bone attach
 - [ ] Saldırı animasyonu, hitbox, basit düşman/hedef
 

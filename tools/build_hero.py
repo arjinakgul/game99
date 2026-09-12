@@ -2,6 +2,11 @@
 Blender headless script: builds the stylized low-poly hero — a street-style
 Wing Chun fighter (hoodie, joggers, sneakers, hand wraps, dystopian palette).
 
+Exported objects (all skinned to HeroRig):
+  Hero      body incl. eyes + top-knot
+  HoodDown  bunched hood on the back      (visible in normal mode)
+  HoodUp    hood shell + lining + mask    (visible in fight mode)
+
 Pipeline:
   1. Edge "skeleton" + Skin modifier      -> single connected body
   2. Subdivision (1) + flat shading         -> faceted low-poly look
@@ -25,7 +30,6 @@ RENDER_DIR = os.path.join(ROOT, "renders")
 for d in (CHAR_DIR, EXPORT_DIR, RENDER_DIR):
     os.makedirs(d, exist_ok=True)
 NO_RENDER = "--no-render" in sys.argv
-HOOD_UP = "--hood-up" in sys.argv
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -37,13 +41,16 @@ R = math.radians
 PALETTE = {
     "Skin":    (0.78, 0.62, 0.52),
     "Hair":    (0.10, 0.08, 0.07),
-    "Hoodie":  (0.13, 0.13, 0.145),
-    "Pocket":  (0.17, 0.17, 0.185),
-    "Joggers": (0.30, 0.31, 0.26),
-    "Cuff":    (0.80, 0.33, 0.08),
-    "Wrap":    (0.68, 0.66, 0.60),
-    "Sneaker": (0.09, 0.09, 0.10),
-    "Sole":    (0.62, 0.60, 0.55),
+    "Eye":     (0.04, 0.04, 0.05),
+    "Hoodie":  (0.085, 0.105, 0.125),   # ink teal-black, worn
+    "Pocket":  (0.115, 0.135, 0.155),
+    "Joggers": (0.22, 0.20, 0.175),     # dark worn taupe
+    "Stripe":  (0.66, 0.64, 0.58),      # bone-white side stripe / wraps
+    "Signal":  (0.82, 0.32, 0.06),      # hazard orange: cuffs, centreline, hood lining
+    "Wrap":    (0.66, 0.64, 0.58),
+    "Sneaker": (0.07, 0.07, 0.08),
+    "Sole":    (0.60, 0.58, 0.53),
+    "Mask":    (0.05, 0.055, 0.06),
 }
 def flat_material(name, rgb, rough=0.85):
     mat = bpy.data.materials.new(name)
@@ -65,9 +72,9 @@ joint("Hips",    (0, 0, 0.96), 0.16)
 joint("Spine",   (0, 0, 1.12), 0.15,  "Hips")
 joint("Chest",   (0, 0, 1.30), 0.175, "Spine")
 joint("Neck",    (0, 0, 1.47), 0.08,  "Chest")
-joint("Hood",    (0, 0.10, 1.50), 0.10, "Neck")       # bunched hood at the back
 joint("Head",    (0, 0, 1.585), 0.15, "Neck")
 joint("HeadTop", (0, 0, 1.74), 0.115, "Head")
+joint("Bun",     (0, 0.05, 1.80), 0.045, "HeadTop")   # top-knot
 for side, sx in (("Left", 1), ("Right", -1)):
     joint(f"{side}Shoulder", (sx*0.17, 0, 1.42), 0.085, "Chest")
     joint(f"{side}UpperArm", (sx*0.26, 0, 1.38), 0.075, f"{side}Shoulder")
@@ -79,56 +86,128 @@ for side, sx in (("Left", 1), ("Right", -1)):
     joint(f"{side}Foot",     (sx*0.11, 0, 0.10), 0.065, f"{side}LowerLeg")
     joint(f"{side}Toes",     (sx*0.11, -0.14, 0.05), 0.06, f"{side}Foot")
 
-names = list(J)
-verts = [J[n][0] for n in names]
-edges = [(names.index(J[n][2]), i) for i, n in enumerate(names) if J[n][2]]
+def skin_object(name, joints, root, solidify=None):
+    """joints: {name: (pos, radius, parent)} -> low-poly skinned blob object."""
+    names = list(joints)
+    verts = [joints[n][0] for n in names]
+    edges = [(names.index(joints[n][2]), i) for i, n in enumerate(names) if joints[n][2]]
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, edges, [])
+    ob = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(ob)
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = ob
+    ob.select_set(True)
+    sk = ob.modifiers.new("Skin", "SKIN")
+    sk.use_smooth_shade = False
+    sk.branch_smoothing = 0.6
+    svd = me.skin_vertices[0].data
+    for i, n in enumerate(names):
+        r = joints[n][1]
+        svd[i].radius = (r, r)
+        svd[i].use_root = (n == root)
+    ss = ob.modifiers.new("Subsurf", "SUBSURF")
+    ss.levels = ss.render_levels = 1
+    bpy.ops.object.modifier_apply(modifier="Skin")
+    bpy.ops.object.modifier_apply(modifier="Subsurf")
+    for m in PALETTE:
+        ob.data.materials.append(MATS[m])
+    ob.data.shade_flat()
+    return ob
 
-mesh = bpy.data.meshes.new("HeroBody")
-mesh.from_pydata(verts, edges, [])
-body = bpy.data.objects.new("Hero", mesh)
-scene.collection.objects.link(body)
-bpy.context.view_layer.objects.active = body
-body.select_set(True)
-
-skin = body.modifiers.new("Skin", "SKIN")
-skin.use_smooth_shade = False
-skin.branch_smoothing = 0.6
-sv = mesh.skin_vertices[0].data
-for i, n in enumerate(names):
-    r = J[n][1]
-    sv[i].radius = (r, r)
-    sv[i].use_root = (n == "Hips")
-subsurf = body.modifiers.new("Subsurf", "SUBSURF")
-subsurf.levels = subsurf.render_levels = 1
-bpy.ops.object.modifier_apply(modifier="Skin")
-bpy.ops.object.modifier_apply(modifier="Subsurf")
+body = skin_object("Hero", J, "Hips")
 mesh = body.data
-for m in PALETTE:
-    mesh.materials.append(MATS[m])
-mesh.shade_flat()
+
+# eyes: two narrow slits on the face (joined into the body, weighted to Head)
+def add_box(name, size, loc, mat):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
+    ob = bpy.context.active_object
+    ob.name = name
+    ob.scale = size
+    bpy.ops.object.transform_apply(scale=True)
+    for m in PALETTE:
+        ob.data.materials.append(MATS[m])
+    for pl in ob.data.polygons:
+        pl.material_index = MAT_INDEX[mat]
+    return ob
+eyes = [add_box(f"Eye{i}", (0.034, 0.02, 0.014), (sx * 0.036, -0.097, 1.615), "Eye")
+        for i, sx in ((0, 1), (1, -1))]
+# centreline stripe on the chest (wing chun "centre line" motif) as a thin slab
+eyes.append(add_box("Centreline", (0.022, 0.02, 0.24), (0, -0.10, 1.30), "Signal"))
 
 # ------------------------------------------------ region-based flat materials
 def region(c: Vector) -> str:
-    global HOOD_UP
     x, y, z = abs(c.x), c.y, c.z
     if z < 0.045: return "Sole"
     if z < 0.135: return "Sneaker"
-    if z < 0.20:  return "Cuff"                         # jogger cuffs
-    if x > 0.20:                                        # arms
-        return "Wrap" if z < 0.97 else "Hoodie"
-    if y > 0.06 and 1.40 < z < 1.64: return "Hoodie"    # hood
+    if z < 0.20:  return "Signal"                       # jogger cuffs
+    if x > 0.20 and z > 0.78:                           # arms
+        if z < 0.97: return "Wrap"                      # hands
+        if c.x > 0 and z < 1.16: return "Wrap"          # LEFT forearm fully wrapped (signature)
+        if c.x > 0 and z < 1.20: return "Signal"        # tape band at the elbow
+        return "Hoodie"
+    if z > 1.76 and y > 0.0: return "Hair"              # top-knot
     if z > 1.53:                                        # head
-        if HOOD_UP and not (y < -0.06 and z < 1.68): return "Hoodie"
         if z > 1.66 or (y > 0.0 and z > 1.56): return "Hair"
         return "Skin"
     if z > 1.46: return "Skin"                          # neck
     if z > 0.95:
-        if y < -0.13 and 1.02 < z < 1.16: return "Pocket"
+        if y < -0.06 and 1.02 < z < 1.16: return "Pocket"
         return "Hoodie"
+    if x > 0.185 and abs(c.y) < 0.04 and 0.22 < z < 0.92: return "Stripe"  # outer-leg stripe
     return "Joggers"
 for poly in mesh.polygons:
     poly.material_index = MAT_INDEX[region(poly.center)]
+bpy.ops.object.select_all(action="DESELECT")
+for e in eyes:
+    e.select_set(True)
+body.select_set(True)
+bpy.context.view_layer.objects.active = body
+bpy.ops.object.join()
+mesh = body.data
 print(f"Hero mesh: {len(mesh.vertices)} verts, {len(mesh.polygons)} faces")
+
+# ---------------------------------------------------------- hood variants
+HD = {}
+HD["A"] = (Vector((0, 0.03, 1.46)), 0.06, None)
+HD["B"] = (Vector((0, 0.12, 1.50)), 0.10, "A")
+HD["C"] = (Vector((0, 0.15, 1.42)), 0.075, "B")
+hood_down = skin_object("HoodDown", HD, "A")
+for pl in hood_down.data.polygons:
+    pl.material_index = MAT_INDEX["Signal" if pl.normal.z > 0.45 else "Hoodie"]   # lining peeks out on top
+
+HU = {}
+HU["A"] = (Vector((0, 0.03, 1.50)), 0.095, None)
+HU["B"] = (Vector((0, 0.03, 1.60)), 0.185, "A")
+HU["C"] = (Vector((0, 0.03, 1.72)), 0.175, "B")
+HU["D"] = (Vector((0, 0.00, 1.84)), 0.11, "C")
+hood_up = skin_object("HoodUp", HU, "A")
+# open the face: remove front faces at face height
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="DESELECT")
+bpy.ops.object.mode_set(mode="OBJECT")
+for pl in hood_up.data.polygons:
+    c = pl.center
+    pl.select = (c.y < -0.09 and 1.50 < c.z < 1.72 and abs(c.x) < 0.13)
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.delete(type="FACE")
+bpy.ops.object.mode_set(mode="OBJECT")
+for pl in hood_up.data.polygons:
+    c = pl.center
+    pl.material_index = MAT_INDEX["Signal" if (c.y < -0.04 and 1.47 < c.z < 1.76) else "Hoodie"]
+sol = hood_up.modifiers.new("Solidify", "SOLIDIFY")
+sol.thickness = 0.02
+sol.offset = -1.0
+sol.use_rim = True
+sol.material_offset = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]      # inner wall = orange lining
+sol.material_offset_rim = MAT_INDEX["Signal"] - MAT_INDEX["Hoodie"]
+bpy.ops.object.modifier_apply(modifier="Solidify")
+mask = add_box("Mask", (0.17, 0.05, 0.075), (0, -0.085, 1.56), "Mask")
+bpy.ops.object.select_all(action="DESELECT")
+mask.select_set(True); hood_up.select_set(True)
+bpy.context.view_layer.objects.active = hood_up
+bpy.ops.object.join()
+MESHES = [body, hood_down, hood_up]
 
 # ---------------------------------------------------------------- armature
 bpy.ops.object.armature_add(enter_editmode=True, location=(0, 0, 0))
@@ -160,9 +239,13 @@ for name, h, t, parent in BONES:
         b.parent = eb[parent]
         b.use_connect = (eb[parent].tail - b.head).length < 1e-4
 bpy.ops.object.mode_set(mode="OBJECT")
-body.select_set(True); arm.select_set(True)
+bpy.ops.object.select_all(action="DESELECT")
+for ob in MESHES:
+    ob.select_set(True)
+arm.select_set(True)
 bpy.context.view_layer.objects.active = arm
 bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+hood_up.hide_render = True     # default look: hood down
 
 # ------------------------------------------------------------- animation utils
 # Bone local axes (see docs/CHARACTER.md). Blender XYZ euler = X first, then Y,
@@ -324,7 +407,7 @@ fill = bpy.context.active_object
 fill.data.energy = 120; fill.data.size = 4
 fill.data.color = (0.75, 0.85, 1.0)
 fill.rotation_euler = (R(60), 0, R(-55))
-bpy.ops.object.camera_add(location=(2.3, -3.0, 1.45), rotation=(R(80), 0, R(37)))
+bpy.ops.object.camera_add(location=(1.9, -3.2, 1.45), rotation=(R(80), 0, R(31)))
 cam = bpy.context.active_object
 cam.data.lens = 55
 scene.camera = cam
@@ -338,7 +421,9 @@ bg.inputs[1].default_value = 0.8
 def export_all():
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(CHAR_DIR, "hero.blend"))
     bpy.ops.object.select_all(action="DESELECT")
-    body.select_set(True); arm.select_set(True)
+    for ob in MESHES:
+        ob.select_set(True)
+    arm.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=os.path.join(EXPORT_DIR, "hero.glb"),
         export_format="GLB", use_selection=True,
@@ -353,14 +438,14 @@ if not NO_RENDER:
     W, H = 360, 480
     scene.render.resolution_x, scene.render.resolution_y = W, H
     scene.render.image_settings.file_format = "PNG"
-    SHOTS = [("Stance", 1), ("Walk", 7), ("ChainPunch", 1), ("ChainPunch", 7),
-             ("FrontKick", 11), ("BongSau", 9), ("TanSau", 9), ("PakSau", 7), ("HoodUp", 1)]
+    SHOTS = [("Stance", 1), ("FightMode", 1), ("Walk", 7), ("ChainPunch", 1), ("ChainPunch", 7),
+             ("FrontKick", 11), ("BongSau", 9), ("TanSau", 9), ("PakSau", 7)]
     tiles = []
     for track_name, frame in SHOTS:
-        if track_name == "HoodUp":
-            HOOD_UP = True
-            for poly in mesh.polygons:
-                poly.material_index = MAT_INDEX[region(poly.center)]
+        fight = track_name == "FightMode"
+        hood_up.hide_render = not fight
+        hood_down.hide_render = fight
+        if fight:
             track_name = "Stance"
         for tr in arm.animation_data.nla_tracks:
             tr.mute = (tr.name != track_name)

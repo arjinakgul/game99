@@ -117,9 +117,14 @@ def retarget_clip(bvh_path, clip):
     hip0 = src_pos(src, mapping, "Hips").copy()
     print(f"  yaw fix {math.degrees(-yaw):.1f} deg, height scale {scale:.3f}")
 
-    # --- action on hero
+    # --- action on hero (replace an existing clip of the same name)
     if hero.animation_data is None:
         hero.animation_data_create()
+    for tr in list(hero.animation_data.nla_tracks):
+        if tr.name == clip:
+            hero.animation_data.nla_tracks.remove(tr)
+    if clip in bpy.data.actions:
+        bpy.data.actions.remove(bpy.data.actions[clip])
     action = bpy.data.actions.new(clip)
     hero.animation_data.action = action
     hero_rest = {b: hero.pose.bones[b].bone.matrix_local.to_3x3() for b in ORDER}
@@ -209,7 +214,10 @@ for bvh, clip in jobs:
 if DO_EXPORT:
     bpy.ops.wm.save_as_mainfile(filepath=CHAR_BLEND)
     bpy.ops.object.select_all(action="DESELECT")
-    bpy.data.objects["Hero"].select_set(True); hero.select_set(True)
+    for ob in bpy.data.objects:                      # every mesh skinned to the rig (body + hood variants)
+        if ob.type == "MESH" and ob.parent == hero:
+            ob.select_set(True)
+    hero.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=os.path.join(EXPORT_DIR, "hero.glb"), export_format="GLB", use_selection=True,
         export_animations=True, export_animation_mode="ACTIONS", export_yup=True,
