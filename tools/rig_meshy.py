@@ -191,9 +191,21 @@ else:
         ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9))); return (p - (a + ab * t)).length
     segs = [(bn.name, bn.head_local.copy(), bn.tail_local.copy()) for bn in arm.data.bones]
     groups = {n: (body.vertex_groups.get(n) or body.vertex_groups.new(name=n)) for n, _, _ in segs}
+    neck_z = J["Neck"].z; head_z = J["Head"].z; wrist_z = J["LeftHand"].z; hip_z = J["Hips"].z
+    def allowed(c):
+        """region constraints so nearby-but-wrong bones (shoulders near a chibi head) never win"""
+        if c.z > head_z + 0.02 * H: return ("Head",)
+        if c.z > neck_z and abs(c.x) < 0.16 * H: return ("Head", "Neck")   # chibi head sits right on the shoulders
+        return None
     for v in me.vertices:
-        (d1, n1), (d2, n2) = sorted(((seg_dist(v.co, a, b), n) for n, a, b in segs))[:2]
-        if d1 <= 0 or d2 <= 0: groups[n1].add([v.index], 1.0, "REPLACE"); continue
+        ok = allowed(v.co)
+        cands = sorted((seg_dist(v.co, a, b), n) for n, a, b in segs if ok is None or n in ok)
+        if not cands:
+            cands = sorted((seg_dist(v.co, a, b), n) for n, a, b in segs)
+        d1, n1 = cands[0]
+        if len(cands) < 2 or d1 <= 0: groups[n1].add([v.index], 1.0, "REPLACE"); continue
+        d2, n2 = cands[1]
+        if d2 <= 0: groups[n1].add([v.index], 1.0, "REPLACE"); continue
         w1, w2 = 1 / d1 ** 4, 1 / d2 ** 4
         if w2 / (w1 + w2) < 0.08: groups[n1].add([v.index], 1.0, "REPLACE")
         else: groups[n1].add([v.index], w1 / (w1 + w2), "REPLACE"); groups[n2].add([v.index], w2 / (w1 + w2), "REPLACE")
@@ -202,8 +214,8 @@ else:
         n = 0
         for v in me.vertices:
             c = v.co
-            shoulder_band = 0.60 * H < c.z < 0.75 * H and (c.y > 0.015 * H or abs(c.x) > 0.075 * H)
-            hood_flaps = 0.75 * H <= c.z < 0.88 * H and (abs(c.x) > 0.11 * H or c.y > 0.06 * H)
+            shoulder_band = 0.60 * H < c.z < 0.72 * H and c.y > 0.02 * H
+            hood_flaps = 0.72 * H <= c.z < 0.86 * H and c.y > 0.07 * H
             if shoulder_band or hood_flaps:
                 for g in list(v.groups):
                     body.vertex_groups[g.group].remove([v.index])

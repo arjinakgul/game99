@@ -35,3 +35,11 @@ Pipeline: `rig_meshy.py --meshy-rig` Meshy iskeletini bizim 19 kemik ismine çev
 ebeveyne birleştirilir), ağırlıkları dokulu mesh'e nearest-face ile aktarır, prosedürel klipleri kurar;
 `retarget_bvh.py` BVH ve GLB (Meshy walk/run) kaynaklarını aynı rig'e aktarır. Sonuç `assets/exports/hero_meshy.glb`,
 Godot ana sahnesinde kullanılır. Kapüşon-açık model kendi rig'imizle (mesafe skinning) `hero_meshy_hooddown.glb`.
+
+## Bağlama kalite notları
+- Meshy auto-rig ağırlıkları (kapüşon-kapalı model) yakın planda temiz: kapüşon, maske, parmaklar, sargılar.
+- Kendi mesafe bağlamamız (kapüşon-açık) chibi kafada kulakları omuz/kol kemiklerine kaptırıyordu (Stance'ta elf kulağı).
+  Düzeltme: boyun hizasının üstündeki vertexler yalnızca Head/Neck'e bağlanır; omuzdaki kapüşon kumaşı (arkada, y>0)
+  Chest'e sabitlenir. Kol/bacak için ek bölge kuralı DENENDİ ve kaldırıldı: gövde yan vertexlerini kola zorlayıp dev spike
+  üretiyordu. Kontrol: `renders/hero_meshy_hooddown_detail.png`, `renders/hero_meshy_detail.png`.
+- Yakın plan kontrolü artık standart: her rig değişikliğinden sonra rest / Stance / ChainPunch / FrontKick yakın planı.
