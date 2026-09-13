@@ -1,30 +1,35 @@
 extends CharacterBody3D
-## Third-person controller for the hero. Movement is camera-relative, clips are
-## in-place (no root motion), so locomotion speed comes from here.
-##
+## Third-person controller. Movement is camera-relative, clips are in-place.
 ## Controls: WASD/arrows move, Shift run, Space jump, LMB/J chain punch, RMB/K kick,
-## L block (Bong Sau), F toggle fight mode (hood up/down), mouse orbit, Esc frees the mouse.
+## L block (Bong Sau), F fight mode (hood up/down), mouse orbit, Esc frees the mouse.
 
 @export var walk_speed := 2.2
 @export var run_speed := 5.0
-@export var jump_velocity := 5.0
+@export var jump_velocity := 5.5
 @export var turn_speed := 12.0
 @export var mouse_sensitivity := 0.0025
+@export var hit_range := 1.7
+@export var hit_angle_deg := 70.0
 
 @onready var hero: Node3D = $Hero
 @onready var pivot: Node3D = $CameraPivot
 @onready var arm: SpringArm3D = $CameraPivot/SpringArm3D
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var _state := "idle"           # idle | walk | run | air | attack | kick | block
-var _action_timer := 0.0
+var _state := "idle"     # idle | walk | run | jump | air | land | attack | kick | block
+var _timer := 0.0
+var _hit_at := -1.0      # seconds into an action when the hit check fires
 var _yaw := 0.0
 var _pitch := -0.25
+var _airborne := false
 
-const ACTIONS := {              # state -> [clip, duration seconds, loop]
-	"attack": ["ChainPunch", 0.75, false],
-	"kick":   ["MT_Teep", 1.0, false],
-	"block":  ["BongSau", 0.6, false],
+# state -> [clip, lock seconds, hit time (-1 = none), damage]
+const ACTIONS := {
+	"attack": ["ChainPunch", 0.75, 0.22, 1],
+	"kick":   ["MT_Teep", 1.0, 0.45, 2],
+	"block":  ["BongSau", 0.6, -1.0, 0],
+	"jump":   ["Jump", 0.3, -1.0, 0],
+	"land":   ["Land", 0.25, -1.0, 0],
 }
 
 func _ready() -> void:
@@ -32,7 +37,6 @@ func _ready() -> void:
 	arm.rotation.x = _pitch
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_play("Stance")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -46,25 +50,35 @@ func _unhandled_input(event: InputEvent) -> void:
 		hero.fight_mode = not hero.fight_mode
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
+	var was_on_floor := is_on_floor()
+	if not was_on_floor:
 		velocity.y -= _gravity * delta
-	# one-shot actions lock movement until they finish
-	if _state in ACTIONS:
-		_action_timer -= delta
-		velocity.x = move_toward(velocity.x, 0.0, 12.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, 12.0 * delta)
-		move_and_slide()
-		if _action_timer <= 0.0:
-			_set_state("idle")
-		return
-	for a in ACTIONS:
-		if Input.is_action_just_pressed(a):
-			_set_state(a)
-			return
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var dir := (Transform3D(Basis(Vector3.UP, _yaw), Vector3.ZERO) * Vector3(input.x, 0, input.y)).normalized()
+	var dir := (Basis(Vector3.UP, _yaw) * Vector3(input.x, 0, input.y)).normalized()
 	var running := Input.is_action_pressed("run")
 	var speed := run_speed if running else walk_speed
+
+	if _state in ACTIONS:
+		_timer -= delta
+		var a: Array = ACTIONS[_state]
+		var elapsed: float = a[1] - _timer
+		if _hit_at >= 0.0 and elapsed >= _hit_at:
+			_hit_at = -1.0
+			_do_hit(a[3])
+		if _state != "jump":                 # ground actions stop you; jump keeps momentum
+			velocity.x = move_toward(velocity.x, 0.0, 12.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 12.0 * delta)
+		move_and_slide()
+		if _state == "jump" and not is_on_floor() and elapsed > 0.12:
+			_set_state("air")
+		elif _timer <= 0.0:
+			_set_state("idle")
+		return
+
+	for a in ["attack", "kick", "block"]:
+		if is_on_floor() and Input.is_action_just_pressed(a):
+			_set_state(a)
+			return
 	if dir.length() > 0.01:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
@@ -74,35 +88,51 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0.0, speed * 6.0 * delta)
 	if is_on_floor() and Input.is_action_just_pressed("jump"):
 		velocity.y = jump_velocity
+		_set_state("jump")
+		move_and_slide()
+		return
 	move_and_slide()
-	# locomotion state
+
 	var planar := Vector2(velocity.x, velocity.z).length()
 	if not is_on_floor():
 		_set_state("air")
+	elif _state == "air":
+		_set_state("land")
 	elif planar > run_speed * 0.7:
 		_set_state("run")
 	elif planar > 0.2:
 		_set_state("walk")
 	else:
 		_set_state("idle")
+	# locomotion blend: 0 idle, 1 walk, 2 run
+	if is_on_floor():
+		var pos := planar / walk_speed if planar <= walk_speed else 1.0 + (planar - walk_speed) / (run_speed - walk_speed)
+		hero.set_locomotion(pos)
 
 func _set_state(s: String) -> void:
 	if s == _state:
 		return
 	_state = s
-	match s:
-		"idle": _play("Stance")
-		"walk": _play("MeshyWalk")
-		"run":  _play("MeshyRun")
-		"air":  _play("Stance")          # placeholder until a Jump clip exists
-		_:
-			var a: Array = ACTIONS[s]
-			_action_timer = a[1]
-			_play(a[0], a[2])
+	var airborne := s in ["air"]
+	if airborne != _airborne:
+		_airborne = airborne
+		hero.set_airborne(airborne)
+	if s in ACTIONS:
+		var a: Array = ACTIONS[s]
+		_timer = a[1]
+		_hit_at = a[2]
+		hero.fire_action(a[0])
+	elif s == "idle":
+		hero.set_locomotion(0.0)
 
-func _play(clip: String, loop := true) -> void:
-	if hero and hero.has_method("play_clip"):
-		hero.play_clip(clip, loop)
+func _do_hit(damage: int) -> void:
+	var fwd := -hero.global_transform.basis.z
+	for e in get_tree().get_nodes_in_group("enemy"):
+		var to: Vector3 = e.global_position - global_position
+		to.y = 0
+		if to.length() <= hit_range and rad_to_deg(fwd.angle_to(to.normalized())) <= hit_angle_deg:
+			if e.has_method("take_hit"):
+				e.take_hit(damage, global_position)
 
 func get_state() -> String:
 	return _state

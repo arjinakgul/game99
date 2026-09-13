@@ -162,3 +162,19 @@ def _build(arm, scene):
            "LeftUpperArm": (-60, 22, 0), "RightUpperArm": (-40, -18, 0)}
     make_action("Hit", [(1, STANCE), (4, merged(STANCE, HIT)), (14, STANCE)], loop=False)
 
+    # Jump: crouch -> launch -> tuck (12f one-shot, then Air loop), Land: 8f one-shot
+    CROUCH = merged(LEGS_STANCE, GUARD, {"Hips.loc": (0, 0, -0.14), "Chest": (12, 0, 0),
+              "LeftUpperLeg": (-38, 8, 4), "LeftLowerLeg": (55, 0, 0), "LeftFoot": (-18, 0, 0),
+              "RightUpperLeg": (-38, -8, -4), "RightLowerLeg": (55, 0, 0), "RightFoot": (-18, 0, 0)})
+    LAUNCH = merged(GUARD, {"Hips.loc": (0, 0, 0.02), "Chest": (-4, 0, 0),
+              "LeftUpperLeg": (-6, 8, 4), "LeftLowerLeg": (6, 0, 0), "LeftFoot": (22, 0, 0),
+              "RightUpperLeg": (-6, -8, -4), "RightLowerLeg": (6, 0, 0), "RightFoot": (22, 0, 0),
+              "LeftUpperArm": (-40, 22, 0), "RightUpperArm": (-20, -18, 0)})
+    TUCK = merged(GUARD, {"Hips.loc": (0, 0, 0.0), "Chest": (6, 0, 0),
+              "LeftUpperLeg": (-55, 8, 4), "LeftLowerLeg": (70, 0, 0), "LeftFoot": (10, 0, 0),
+              "RightUpperLeg": (-35, -8, -4), "RightLowerLeg": (50, 0, 0), "RightFoot": (10, 0, 0)})
+    make_action("Jump", [(1, STANCE), (4, CROUCH), (8, LAUNCH), (12, TUCK)], loop=False)
+    make_action("Air", [(f, merged(TUCK, {"Chest": (6 + 1.5 * math.sin((f - 1) / 24 * math.tau), 0, 0)}))
+                        for f in range(1, 26, 4)] + [(25, TUCK)])
+    make_action("Land", [(1, LAUNCH), (4, CROUCH), (8, STANCE)], loop=False)
+

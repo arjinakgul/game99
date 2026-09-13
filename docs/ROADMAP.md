@@ -57,10 +57,15 @@ grafik gerekirse Unreal'a geçiş değerlendirilebilir; glTF export'ları Unreal
 - [x] `world.tscn`: zemin, kasalar, gökyüzü, sis, ışık; ana sahne
 - [x] Durum makinesi (script): idle=Stance, walk=MeshyWalk, run=MeshyRun, attack=ChainPunch, kick=MT_Teep, block=BongSau; F = fight mode
 - [x] `smoke_test.gd`: headless test (yürü/koş/saldır/tekme/idle) — `godot --headless --path game-godot --script smoke_test.gd`
-- [ ] Zıplama klibi, AnimationTree ile blend (yürüme↔koşma), kamera çarpışma ayarı, ayak kayması kontrolü (kullanıcı makinesinde)
+- [x] Zıplama: Jump / Air / Land prosedürel klipleri (`hero_anims.py`), oyuncu durumları jump→air→land
+- [x] AnimationTree (kodla kurulur, `hero.gd`): BlendSpace1D idle/walk/run + OneShot aksiyon katmanı + ground/air geçişi
+- [x] Düşman placeholder (`enemy.tscn`, base-mesh karakter, MT_Guard): vuruş tespiti (menzil + açı), Hit tepkisi, can, düşme
+- [ ] Kamera çarpışma ayarı, ayak kayması, saldırı zamanlaması hissi (kullanıcı makinesinde test)
 
 ### Faz 3 — Dövüş, fight mode ve etkileşim
+- [x] İlk vuruş döngüsü: oyuncu aksiyonu → zamanlı hit check → düşman Hit/knockdown
 - [ ] Fight mode (kapüşon kapalı) mekaniği: odak sayacı, hız/hasar boost, geçiş animasyonu
+- [ ] Düşman AI: yaklaşma, saldırı, blok; oyuncu can ve Hit tepkisi
 - [ ] Blender'da 1-2 silah modeli, karaktere socket/bone attach
 - [ ] Saldırı animasyonu, hitbox, basit düşman/hedef
 

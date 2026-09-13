@@ -13,7 +13,7 @@ bash tools/make_all.sh --no-render   # aynısı, kontak sayfası render'ı olmad
 
 # Godot (kendi makinende): game-godot/ klasörünü Godot 4.7.2 ile aç, F5. WASD hareket, Shift koş, Space zıpla,
 # sol tık/J chain punch, sağ tık/K tekme, L blok, F kapüşon (fight mode), Esc fare.
-# headless test: (cd game-godot && godot --headless --path . --script smoke_test.gd)
+# headless test: (cd game-godot && godot --headless --path . --script smoke_test.gd)  # yürü/koş/zıpla/vur/tekme + düşman canı
 
 # tek tek:
 blender -b --python tools/build_hero.py                       # gövde, rig, prosedürel klipler, hero.glb, renders/hero_poses.png
