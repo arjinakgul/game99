@@ -29,7 +29,7 @@ var _airborne := false
 # state -> [clip, lock seconds, hit time (-1 = none), damage, animation speed]
 const ACTIONS := {
 	"attack": ["ChainPunch", 0.45, 0.15, 1, 1.6],
-	"kick":   ["MT_Teep", 0.65, 0.32, 2, 1.8],
+	"kick":   ["MT_Teep", 0.85, 0.40, 2, 1.25],
 	"block":  ["BongSau", 0.45, -1.0, 0, 1.4],
 	"jump":   ["Jump", 0.3, -1.0, 0, 1.2],
 	"land":   ["Land", 0.2, -1.0, 0, 1.4],
@@ -113,7 +113,8 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 0.01:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
-		hero.rotation.y = lerp_angle(hero.rotation.y, atan2(-dir.x, -dir.z), turn_speed * delta)
+		# glTF models face +Z, so aim the hero's +Z at the move direction
+		hero.rotation.y = lerp_angle(hero.rotation.y, atan2(dir.x, dir.z), turn_speed * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed * 6.0 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * 6.0 * delta)
@@ -159,7 +160,7 @@ func _set_state(s: String) -> void:
 		hero.set_locomotion(0.0)
 
 func _do_hit(damage: int) -> void:
-	var fwd := -hero.global_transform.basis.z
+	var fwd := hero.global_transform.basis.z      # model front (+Z)
 	for e in get_tree().get_nodes_in_group("enemy"):
 		var to: Vector3 = e.global_position - global_position
 		to.y = 0
@@ -169,3 +170,6 @@ func _do_hit(damage: int) -> void:
 
 func get_state() -> String:
 	return _state
+
+func hero_forward() -> Vector3:
+	return hero.global_transform.basis.z
