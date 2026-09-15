@@ -3,7 +3,8 @@ Render a contact sheet of clip frames from hero.blend.
 
 Usage:
   blender -b assets/characters/hero/hero.blend --python tools/render_sheet.py -- \
-      out.png [--fight] [--cols N] Clip:frame Clip:frame ...
+      out.png [--fight] [--cols N] [--lens MM] [--shift Y] Clip:frame Clip:frame ...
+  --lens / --shift zoom the scene camera (focal length, vertical frame shift) for close-ups.
 """
 import bpy, math, os, sys
 import numpy as np
@@ -20,6 +21,10 @@ for name, vis in (("HoodUp", fight), ("HoodDown", not fight)):
     if name in bpy.data.objects:
         bpy.data.objects[name].hide_render = not vis
 scene.render.engine = "BLENDER_EEVEE"
+if "--lens" in argv and scene.camera:
+    scene.camera.data.lens = float(argv[argv.index("--lens") + 1])
+if "--shift" in argv and scene.camera:
+    scene.camera.data.shift_y = float(argv[argv.index("--shift") + 1])
 W, H = 360, 480
 scene.render.resolution_x, scene.render.resolution_y = W, H
 scene.render.image_settings.file_format = "PNG"

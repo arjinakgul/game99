@@ -25,6 +25,7 @@ argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 jobs = [(a.split(":")[0], a.split(":")[1], "inplace" in a.split(":")[2:]) for a in argv if not a.startswith("--")]
 DO_RENDER = "--render" in argv
 DO_EXPORT = "--no-export" not in argv
+DEBUG = os.environ.get("RETARGET_DEBUG") == "1"    # print per-bone swing error of the result vs the source
 
 # hero bone -> candidate source names (first match wins)
 NAME_MAPS = {
@@ -61,6 +62,22 @@ for s in ("Left", "Right"):
         f"{s}LowerLeg": (f"{s}LowerLeg", f"{s}Foot"),
         f"{s}Foot":     (f"{s}Foot", f"{s}Toes"),
     })
+# limb bones get a full frame: bone direction + the joint's hinge axis (normal of the bend plane), so the
+# twist follows the source. The hinge side is anatomical (elbows bend forward, knees bend backward), so the
+# hinge axis in the hero rest pose is derived from a reference bend direction instead of guessed from bone X.
+LIMB_CHAIN = {}
+for s_ in ("Left", "Right"):
+    LIMB_CHAIN[f"{s_}UpperArm"] = (f"{s_}UpperArm", f"{s_}LowerArm", f"{s_}Hand", True, Vector((0, -1, 0)))
+    LIMB_CHAIN[f"{s_}LowerArm"] = (f"{s_}UpperArm", f"{s_}LowerArm", f"{s_}Hand", False, Vector((0, -1, 0)))
+    LIMB_CHAIN[f"{s_}UpperLeg"] = (f"{s_}UpperLeg", f"{s_}LowerLeg", f"{s_}Foot", True, Vector((0, 1, 0)))
+    LIMB_CHAIN[f"{s_}LowerLeg"] = (f"{s_}UpperLeg", f"{s_}LowerLeg", f"{s_}Foot", False, Vector((0, 1, 0)))
+
+
+def frame_from(hinge, d):
+    """Orthonormal basis with Y = bone direction d and X = hinge axis (projected off d)."""
+    x = (hinge - d * hinge.dot(d)).normalized()
+    return Matrix((x, d, x.cross(d))).transposed()
+
 ORDER = ["Hips", "Spine", "Chest", "Neck", "Head"] + [
     f"{s}{b}" for s in ("Left", "Right")
     for b in ("Shoulder", "UpperArm", "LowerArm", "Hand", "UpperLeg", "LowerLeg", "Foot")]
@@ -106,6 +123,20 @@ def src_pos(src_arm, mapping, key):
     if key is None or key not in mapping:
         return None
     return src_arm.matrix_world @ src_arm.pose.bones[mapping[key]].head
+
+def src_rot(src_arm, mapping, key):
+    """World-space rotation the source applied to a joint (pose vs. rest), independent of its bone axes."""
+    if key is None or key not in mapping:
+        return None
+    name = mapping[key]
+    pose = (src_arm.matrix_world @ src_arm.pose.bones[name].matrix).to_3x3()
+    rest = (src_arm.matrix_world @ src_arm.data.bones[name].matrix_local).to_3x3()
+    pose.normalize(); rest.normalize()
+    return pose @ rest.inverted()
+
+# leaf bones (hands, head): copy the source's joint rotation relative to its parent joint (wrist flex/twist,
+# head tilt) on top of the hero parent's pose; needs both rest poses to have a straight wrist/neck.
+LEAF_DELTA = {"LeftHand": "LeftLowerArm", "RightHand": "RightLowerArm", "Head": "Neck"}
 
 def retarget_clip(bvh_path, clip, in_place=False):
     before = set(bpy.data.objects)
@@ -173,6 +204,8 @@ def retarget_clip(bvh_path, clip, in_place=False):
     hero_rest = {b: hero.pose.bones[b].bone.matrix_local.to_3x3() for b in ORDER}
     for pb in hero.pose.bones:
         pb.rotation_mode = "QUATERNION"
+    last_hinge = {}
+    dbg_err = {}
 
     for f in range(1, nframes + 1):
         scene.frame_set(f)
@@ -196,9 +229,35 @@ def retarget_clip(bvh_path, clip, in_place=False):
                     # hero rest frame: X = side(+X), Y = up, Z = front(-Y); fw = side x up = front
                     tgt = Matrix((sd, up, fw)).transposed()   # columns: X=side, Y=up, Z=front
                     R_world = tgt @ rest.inverted()
+            if R_world is None and hb in LIMB_CHAIN:
+                a_k, b_k, c_k, is_upper, ref_bend = LIMB_CHAIN[hb]
+                if a_k in P and b_k in P and c_k in P:
+                    d_up = (P[b_k] - P[a_k]).normalized()
+                    d_lo = (P[c_k] - P[b_k]).normalized()
+                    d = d_up if is_upper else d_lo
+                    up_rest = hero_rest[a_k].col[1].normalized()
+                    h_rest = up_rest.cross(ref_bend).normalized()          # hinge axis in the hero rest pose
+                    # fallback hinge: rest hinge carried along by the swing (used when the limb is straight)
+                    h_swing = rest_dir.rotation_difference(d) @ h_rest
+                    n = d_up.cross(d_lo)
+                    w = min(max((n.length - 0.10) / 0.25, 0.0), 1.0)     # 0 below ~6 deg bend, 1 above ~20 deg
+                    if n.length > 1e-6:
+                        n.normalize()
+                        ref = last_hinge.get(hb, h_swing)
+                        if n.dot(ref) < 0:                                # hyperextended source joint: keep side
+                            n = -n
+                    hinge = (n * w + h_swing * (1.0 - w)).normalized() if w > 0 else h_swing
+                    last_hinge[hb] = hinge
+                    R_world = frame_from(hinge, d) @ frame_from(h_rest, rest_dir).inverted()
+            if R_world is None and hb in LEAF_DELTA and pb.parent:
+                r_leaf = src_rot(src, mapping, hb)
+                r_par = src_rot(src, mapping, LEAF_DELTA[hb])
+                if r_leaf is not None and r_par is not None:
+                    delta = r_leaf @ r_par.inverted()
+                    R_world = delta @ pb.parent.matrix.to_3x3() @ pb.parent.bone.matrix_local.to_3x3().inverted()
             if R_world is None:
                 if tail_key is None or head_key not in P or tail_key not in P:
-                    # leaf (head/hands): inherit parent's swing -> identity basis
+                    # leaf (head/hands) without source rotation: inherit parent's swing -> identity basis
                     pb.rotation_quaternion = Quaternion()
                     continue
                 d = (P[tail_key] - P[head_key]).normalized()
@@ -218,10 +277,21 @@ def retarget_clip(bvh_path, clip, in_place=False):
                     dpos.x = dpos.y = 0.0
                 pb.location = rest.inverted() @ dpos
             bpy.context.view_layer.update()
+        if DEBUG:
+            for hb in ORDER:
+                head_key, tail_key = CHAIN[hb]
+                if tail_key and head_key in P and tail_key in P:
+                    pbm = hero.pose.bones[hb]
+                    got = ((hero.matrix_world @ pbm.tail) - (hero.matrix_world @ pbm.head)).normalized()
+                    want = (P[tail_key] - P[head_key]).normalized()
+                    err = math.degrees(got.angle(want)) if got.length and want.length else 0
+                    dbg_err[hb] = max(dbg_err.get(hb, 0), err)
         for hb in ORDER:
             hero.pose.bones[hb].keyframe_insert("rotation_quaternion", frame=f)
         hero.pose.bones["Hips"].keyframe_insert("location", frame=f)
 
+    if DEBUG:
+        print("  max direction error (deg): " + ", ".join(f"{k} {v:.1f}" for k, v in dbg_err.items() if v > 2))
     action.frame_range = (1, nframes)
     action.use_frame_range = True
     hero.animation_data.action = None
