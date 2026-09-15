@@ -43,3 +43,10 @@ Godot ana sahnesinde kullanılır. Kapüşon-açık model kendi rig'imizle (mesa
   Chest'e sabitlenir. Kol/bacak için ek bölge kuralı DENENDİ ve kaldırıldı: gövde yan vertexlerini kola zorlayıp dev spike
   üretiyordu. Kontrol: `renders/hero_meshy_hooddown_detail.png`, `renders/hero_meshy_detail.png`.
 - Yakın plan kontrolü artık standart: her rig değişikliğinden sonra rest / Stance / ChainPunch / FrontKick yakın planı.
+
+## Meshy iskeleti tuzakları (düzeltildi)
+- Omurga isimleri yüksekliğe göre TERS: Hips → Spine02 (en alt) → Spine01 → Spine (en üst) → neck. Mixamo'nun tersi.
+  `rig_meshy.py` (MESHY_TO_OURS) ve `retarget_bvh.py` (MESHY_MAP) buna göre eşler; yanlış eşleme göğsü kalçaya çökertiyordu
+  (yürüme klibinde "karın kayboluyor, karakter kısalıyor").
+- glTF importu kemik uçlarını (tail) 10+ m uzunlukta tahmin ediyor; rig kurulurken uçlar çocuk kemiklerin başına göre
+  yeniden hesaplanır, yoksa yön bazlı retarget bozulur.

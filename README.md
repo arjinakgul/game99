@@ -11,8 +11,9 @@ bash tools/setup_cloud.sh   # Blender 5.2.1 + Godot 4.7.2 kurar (~10 dk, bir kez
 bash tools/make_all.sh      # karakter build -> mocap retarget -> Godot import + 2 frame test
 bash tools/make_all.sh --no-render   # aynısı, kontak sayfası render'ı olmadan (hızlı)
 
-# Godot (kendi makinende): game-godot/ klasörünü Godot 4.7.2 ile aç, F5. WASD hareket, Shift koş, Space zıpla,
-# sol tık/J chain punch, sağ tık/K tekme, L blok, F kapüşon (fight mode), Esc fare.
+# Godot (kendi makinende): game-godot/ klasörünü Godot 4.7.2 ile aç, F5. WASD hareket (kameraya göre), Shift koş,
+# Space zıpla, sol tık/J chain punch, sağ tık/K tekme, L blok, F kapüşon (fight mode).
+# Kamera varsayılan olarak sabit takip (Player > camera_mode = "fixed"); "orbit" seçilirse fare ile döner, Esc fareyi bırakır.
 # headless test: (cd game-godot && godot --headless --path . --script smoke_test.gd)  # yürü/koş/zıpla/vur/tekme + düşman canı
 
 # tek tek:

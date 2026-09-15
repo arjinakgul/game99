@@ -31,7 +31,8 @@ def P(p): return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 # Meshy/Mixamo-style bone name -> our rig name (None = merge into parent)
 MESHY_TO_OURS = {
-    "Hips": "Hips", "Spine": "Spine", "Spine01": None, "Spine02": "Chest", "neck": "Neck", "Neck": "Neck",
+    # Meshy spine chain runs Hips -> Spine02 (lowest) -> Spine01 -> Spine (highest) -> neck
+    "Hips": "Hips", "Spine02": "Spine", "Spine01": None, "Spine": "Chest", "neck": "Neck", "Neck": "Neck",
     "Head": "Head", "head_end": None, "headfront": None, "HeadTop_End": None,
     "LeftShoulder": "LeftShoulder", "LeftArm": "LeftUpperArm", "LeftForeArm": "LeftLowerArm", "LeftHand": "LeftHand",
     "LeftUpLeg": "LeftUpperLeg", "LeftLeg": "LeftLowerLeg", "LeftFoot": "LeftFoot", "LeftToeBase": None, "LeftToe_End": None,
@@ -96,30 +97,63 @@ if MESHY_RIG:
     rS = HEIGHT / (rhi.z - rlo.z); rOFF = Vector((-(rlo.x + rhi.x) / 2, -(rlo.y + rhi.y) / 2, -rlo.z))
     for v in rmesh.data.vertices: v.co = (v.co + rOFF) * rS
     rmesh.data.update()
+    # ---- 1) merge vertex groups of bones we drop into their surviving ancestor (source names)
+    def surviving(n):
+        while n in MESHY_TO_OURS and MESHY_TO_OURS[n] is None:
+            n = src_parent.get(n)
+        return n
+    src_parent = {b.name: (b.parent.name if b.parent else None) for b in rarm.data.bones}
+    for vg in list(rmesh.vertex_groups):
+        keep = surviving(vg.name)
+        if keep == vg.name:
+            continue
+        if keep is None:
+            rmesh.vertex_groups.remove(vg); continue
+        dst = rmesh.vertex_groups.get(keep) or rmesh.vertex_groups.new(name=keep)
+        for v in rmesh.data.vertices:
+            for g in v.groups:
+                if g.group == vg.index and g.weight > 0:
+                    cur = 0.0
+                    try: cur = dst.weight(v.index)
+                    except RuntimeError: pass
+                    dst.add([v.index], min(1.0, cur + g.weight), "REPLACE")
+        rmesh.vertex_groups.remove(vg)
+    # ---- 2) skeleton: normalise, drop merged bones, rename (Blender syncs the mesh's group names)
     bpy.ops.object.select_all(action="DESELECT"); rarm.select_set(True); bpy.context.view_layer.objects.active = rarm
     bpy.ops.object.mode_set(mode="EDIT")
-    for b in rarm.data.edit_bones:
+    ebs = rarm.data.edit_bones
+    for b in ebs:
         b.head = (b.head + rOFF) * rS; b.tail = (b.tail + rOFF) * rS
-    # merge/rename bones
-    merged_into = {}
-    for b in list(rarm.data.edit_bones):
-        target = MESHY_TO_OURS.get(b.name, None)
+    for b in list(ebs):
         if b.name not in MESHY_TO_OURS:
             print("  unmapped Meshy bone:", b.name, "-> merged into parent")
-        if target is None:
+        if MESHY_TO_OURS.get(b.name) is None:
             parent = b.parent
             for c in b.children: c.parent = parent
-            merged_into[b.name] = parent.name if parent else None
-            rarm.data.edit_bones.remove(b)
-    for b in rarm.data.edit_bones:
-        b.name = MESHY_TO_OURS[b.name]
-    # resolve chains of merges to final (renamed) group names
-    def final_group(n):
-        while n in merged_into: n = merged_into[n]
-        return MESHY_TO_OURS.get(n, n)
-    # our roll convention: limbs Z=+Y, torso/head default (roll 0)
+            ebs.remove(b)
+    for b in ebs:                      # two-pass rename: no collisions (Spine02 -> Spine while Spine exists)
+        b.name = "@" + MESHY_TO_OURS[b.name]
+    for b in ebs:
+        b.name = b.name[1:]
+    # ---- 3) sane bone tails: follow the main chain, else the single child, else a short stub
+    MAIN_CHILD = {"Hips": "Spine", "Spine": "Chest", "Chest": "Neck", "Neck": "Head"}
+    for b in ebs:
+        kids = list(b.children)
+        pref = [c for c in kids if c.name == MAIN_CHILD.get(b.name)]
+        if pref:
+            b.tail = pref[0].head
+        elif kids:
+            b.tail = sum((c.head for c in kids), Vector()) / len(kids)
+        elif b.parent:
+            d = b.head - b.parent.head
+            b.tail = b.head + (d.normalized() if d.length > 1e-6 else Vector((0, 0, 1))) * 0.08
+        else:
+            b.tail = b.head + Vector((0, 0, 0.1))
+        if (b.tail - b.head).length < 1e-4:
+            b.tail = b.head + Vector((0, 0, 0.05))
+    # ---- 4) roll convention: limbs Z=+Y, torso/head roll 0
     bpy.ops.armature.select_all(action="DESELECT")
-    for b in rarm.data.edit_bones:
+    for b in ebs:
         if any(k in b.name for k in ("Arm", "Leg", "Hand", "Foot")):
             b.select = b.select_head = b.select_tail = True
         else:
@@ -128,20 +162,7 @@ if MESHY_RIG:
     bpy.ops.object.mode_set(mode="OBJECT")
     rarm.name = rarm.data.name = "HeroRig"
     arm = rarm
-    # vertex groups on the source mesh: merge + rename to our names
-    for vg in list(rmesh.vertex_groups):
-        tgt = final_group(vg.name)
-        if tgt != vg.name:
-            if tgt is None: continue
-            dst = rmesh.vertex_groups.get(tgt) or rmesh.vertex_groups.new(name=tgt)
-            for v in rmesh.data.vertices:
-                for g in v.groups:
-                    if g.group == vg.index and g.weight > 0:
-                        cur = 0.0
-                        try: cur = dst.weight(v.index)
-                        except RuntimeError: pass
-                        dst.add([v.index], min(1.0, cur + g.weight), "REPLACE")
-            rmesh.vertex_groups.remove(vg)
+    print("  source groups:", sorted(vg.name for vg in rmesh.vertex_groups))
     # transfer weights to the body (textured) mesh
     for vg in rmesh.vertex_groups:
         if not body.vertex_groups.get(vg.name): body.vertex_groups.new(name=vg.name)

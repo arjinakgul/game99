@@ -79,7 +79,18 @@ for k in list(MOTIFECT_MAP):
     if k.startswith("Left"):
         MOTIFECT_MAP["Right" + k[4:]] = MOTIFECT_MAP[k].replace("Left", "Right")
 
+MESHY_MAP = {
+    "Hips": "Hips", "Spine": "Spine02", "Chest": "Spine", "Neck": "neck", "Head": "Head",
+    "LeftShoulder": "LeftShoulder", "LeftUpperArm": "LeftArm", "LeftLowerArm": "LeftForeArm", "LeftHand": "LeftHand",
+    "LeftUpperLeg": "LeftUpLeg", "LeftLowerLeg": "LeftLeg", "LeftFoot": "LeftFoot", "LeftToes": "LeftToeBase",
+}
+for k in list(MESHY_MAP):
+    if k.startswith("Left"):
+        MESHY_MAP["Right" + k[4:]] = MESHY_MAP[k].replace("Left", "Right")
+
 def resolve(src_arm):
+    if "Spine02" in src_arm.pose.bones and "neck" in src_arm.pose.bones:      # Meshy auto-rig
+        return {hb: sb for hb, sb in MESHY_MAP.items() if sb in src_arm.pose.bones}
     if "LeftShin" in src_arm.pose.bones:
         return {hb: sb for hb, sb in MOTIFECT_MAP.items() if sb in src_arm.pose.bones}
     m = {}

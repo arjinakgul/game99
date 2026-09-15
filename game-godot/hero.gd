@@ -58,12 +58,15 @@ func _build_tree(model: Node, ap: AnimationPlayer) -> void:
 	var act := AnimationNodeAnimation.new()
 	act.animation = idle_clip
 	root.add_node("act", act, Vector2(0, 200))
+	var speed := AnimationNodeTimeScale.new()
+	root.add_node("speed", speed, Vector2(120, 200))
+	root.connect_node("speed", 0, "act")
 	var shot := AnimationNodeOneShot.new()
-	shot.fadein_time = 0.08
-	shot.fadeout_time = 0.15
+	shot.fadein_time = 0.06
+	shot.fadeout_time = 0.12
 	root.add_node("shot", shot, Vector2(250, 0))
 	root.connect_node("shot", 0, "loco")
-	root.connect_node("shot", 1, "act")
+	root.connect_node("shot", 1, "speed")
 	var air := AnimationNodeAnimation.new()
 	air.animation = air_clip if ap.has_animation(air_clip) else idle_clip
 	root.add_node("air", air, Vector2(250, 200))
@@ -90,10 +93,11 @@ func set_locomotion(pos: float) -> void:
 	for t in _trees:
 		t.set("parameters/loco/blend_position", clamp(pos, 0.0, 2.0))
 
-func fire_action(clip: String) -> void:
+func fire_action(clip: String, time_scale := 1.0) -> void:
 	for i in _trees.size():
 		var act: AnimationNodeAnimation = _roots[i].get_node("act")
 		act.animation = clip
+		_trees[i].set("parameters/speed/scale", time_scale)
 		_trees[i].set("parameters/shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 func abort_action() -> void:

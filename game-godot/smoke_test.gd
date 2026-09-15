@@ -17,6 +17,7 @@ func _init() -> void:
 func _tick() -> void:
 	_t += 1
 	match _t:
+		8:   _log["cam"] = [_player.get_node("CameraPivot").global_position - _player.global_position, _player.camera_forward()]
 		10:  Input.action_press("move_forward")
 		70:  _log["walk"] = [_player.global_position, _player.get_state()]; Input.action_press("run")
 		130: _log["run"] = [_player.global_position, _player.get_state()]; Input.action_release("run"); Input.action_release("move_forward")
@@ -38,6 +39,10 @@ func _report() -> void:
 		print("SMOKE ", k, " = ", _log[k])
 	var ok := true
 	ok = ok and _log["walk"][1] == "walk" and _log["run"][1] == "run"
+	# W must move the player in the camera's forward direction (away from the camera)
+	var moved: Vector3 = _log["run"][0] - _log["walk"][0]
+	ok = ok and moved.normalized().dot(_log["cam"][1]) > 0.9
+	ok = ok and _log["cam"][0].dot(_log["cam"][1]) < 0.0      # camera sits behind the player
 	ok = ok and _log["air"][1] == "air" and _log["air"][0].y > 0.3
 	ok = ok and _log["landed"][1] == "idle"
 	ok = ok and _log["attack"][1] == "attack" and _log["kick"][1] == "kick" and _log["idle"][1] == "idle"
