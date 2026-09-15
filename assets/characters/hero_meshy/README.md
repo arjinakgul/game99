@@ -34,14 +34,17 @@ Kaynak: Pixellab sprite → Meshy 7 image-to-3D (Pro plan, tam ticari hak).
 Pipeline: `rig_meshy.py --meshy-rig` Meshy iskeletini bizim 19 kemik ismine çevirir (Spine01, ToeBase, head_end vb.
 ebeveyne birleştirilir), ağırlıkları dokulu mesh'e nearest-face ile aktarır, prosedürel klipleri kurar;
 `retarget_bvh.py` BVH ve GLB (Meshy walk/run) kaynaklarını aynı rig'e aktarır. Sonuç `assets/exports/hero_meshy.glb`,
-Godot ana sahnesinde kullanılır. Kapüşon-açık model kendi rig'imizle (mesafe skinning) `hero_meshy_hooddown.glb`.
+Godot ana sahnesinde kullanılır. Kapüşon-açık model (`hero_meshy_hooddown.glb`) kapüşon-kapalı modelin Meshy iskeletini
+ve ağırlıklarını ödünç alır (`--meshy-rig` + `--hood-down`): iki üretim aynı silüete normalize olduğundan iskelet birebir
+oturur; kollar ise donörden değil, Shoulder→UpperArm→LowerArm→Hand zinciri boyunca analitik olarak bağlanır.
 
 ## Bağlama kalite notları
 - Meshy auto-rig ağırlıkları (kapüşon-kapalı model) yakın planda temiz: kapüşon, maske, parmaklar, sargılar.
-- Kendi mesafe bağlamamız (kapüşon-açık) chibi kafada kulakları omuz/kol kemiklerine kaptırıyordu (Stance'ta elf kulağı).
-  Düzeltme: boyun hizasının üstündeki vertexler yalnızca Head/Neck'e bağlanır; omuzdaki kapüşon kumaşı (arkada, y>0)
-  Chest'e sabitlenir. Kol/bacak için ek bölge kuralı DENENDİ ve kaldırıldı: gövde yan vertexlerini kola zorlayıp dev spike
-  üretiyordu. Kontrol: `renders/hero_meshy_hooddown_detail.png`, `renders/hero_meshy_detail.png`.
+- Kendi mesafe bağlamamız (kapüşon-açık, eski yol) chibi kafada kulakları omuz/kol kemiklerine kaptırıyordu ve koşuda
+  omuz/kol yeninde siyah şeritler (spike) üretiyordu: Meshy bu modelde kol yenini gövde yanına/etek ucuna kaynaklamış,
+  kollar da donöre göre daha aşağıda duruyor. Çözüm (rig_meshy.py, Meshy dalı): donör ağırlıkları gövde/kafa/bacak için,
+  kol ailesine daha yakın her vertex için zincir boyunca analitik ağırlık (eklem çevresinde lineer geçiş), kol-gövde
+  kaynak yüzleri varsa silinir (un-fuse). Kontrol: `renders/hero_meshy_hooddown_run_check.png`, `_poses.png`.
 - Yakın plan kontrolü artık standart: her rig değişikliğinden sonra rest / Stance / ChainPunch / FrontKick yakın planı.
 
 ## Meshy iskeleti tuzakları (düzeltildi)

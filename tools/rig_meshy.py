@@ -8,6 +8,9 @@ Two modes:
      blender -b --python tools/rig_meshy.py -- <mesh_or_textured.glb> <name> --meshy-rig <rigged.glb> [...]
      The Meshy skeleton is renamed to our bone names, extra bones are merged into their parents,
      and the weights are transferred onto the (textured) mesh by nearest-face interpolation.
+     The rigged.glb may belong to a *sibling* generation of the same character (e.g. the hood-up
+     rig for the hood-down mesh) as long as both normalise to the same silhouette.
+  --hood-down: hood cloth on the shoulders/back is bound to the Chest instead of the Head.
 
 Outputs: assets/characters/hero_meshy/<name>.blend, assets/exports/<name>.glb
 """
@@ -163,6 +166,18 @@ if MESHY_RIG:
     rarm.name = rarm.data.name = "HeroRig"
     arm = rarm
     print("  source groups:", sorted(vg.name for vg in rmesh.vertex_groups))
+    if HOOD_DOWN:
+        # the rig donor wears its hood up: the cloth hanging down its back is Head-weighted, and a hood-down
+        # mesh would inherit that on its shoulders/upper back. Drop those donor faces so the nearest
+        # remaining surface (torso, sleeves) wins there.
+        import bmesh
+        hn = {rmesh.vertex_groups[n].index for n in ("Head", "Neck") if rmesh.vertex_groups.get(n)}
+        kill = [v.index for v in rmesh.data.vertices
+                if v.co.z < 0.78 * HEIGHT and sum(g.weight for g in v.groups if g.group in hn) > 0.5]
+        bm = bmesh.new(); bm.from_mesh(rmesh.data); bm.verts.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.verts[i] for i in kill], context="VERTS")
+        bm.to_mesh(rmesh.data); bm.free(); rmesh.data.update()
+        print("hood-down: dropped", len(kill), "head-weighted donor verts below the chin")
     # transfer weights to the body (textured) mesh
     for vg in rmesh.vertex_groups:
         if not body.vertex_groups.get(vg.name): body.vertex_groups.new(name=vg.name)
@@ -175,6 +190,76 @@ if MESHY_RIG:
     body.select_set(True); arm.select_set(True); bpy.context.view_layer.objects.active = arm
     bpy.ops.object.parent_set(type="ARMATURE_NAME")
     print("Meshy weights transferred; bones:", len(arm.data.bones), "ungrouped verts:", sum(1 for v in me.vertices if not v.groups))
+    # sanity pass: where the donor surface differs from this mesh (sleeve underside vs. torso side), the nearest
+    # donor face can belong to a bone that is far from the vertex. If the dominant bone's segment is much
+    # farther than the closest bone segment, fall back to distance weights between the two closest bones.
+    def seg_dist(p, a, b):
+        ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9))); return (p - (a + ab * t)).length
+    segs = {bn.name: (bn.head_local.copy(), bn.tail_local.copy()) for bn in arm.data.bones}
+    gname = {vg.index: vg.name for vg in body.vertex_groups}
+    fixed = 0
+    for v in me.vertices:
+        if not v.groups: continue
+        dom = gname[max(v.groups, key=lambda g: g.weight).group]
+        dists = sorted((seg_dist(v.co, a, b), n) for n, (a, b) in segs.items())
+        d_dom = seg_dist(v.co, *segs[dom])
+        if d_dom > 1.8 * dists[0][0] + 0.01 * HEIGHT:
+            for g in list(v.groups): body.vertex_groups[g.group].remove([v.index])
+            (d1, n1), (d2, n2) = dists[0], dists[1]
+            w1, w2 = 1 / max(d1, 1e-6) ** 4, 1 / max(d2, 1e-6) ** 4
+            body.vertex_groups[n1].add([v.index], w1 / (w1 + w2), "REPLACE")
+            if w2 / (w1 + w2) > 0.08: body.vertex_groups[n2].add([v.index], w2 / (w1 + w2), "REPLACE")
+            fixed += 1
+    print("weight sanity pass: re-bound", fixed, "verts to their nearest bones")
+    # arms: the donor's arms hang at a different angle, so nearest-face transfer smears its armpit/elbow
+    # gradients across our sleeves. Every vertex that clearly belongs to an arm (closer to the arm chain than
+    # to the torso) is re-bound analytically along the Shoulder-UpperArm-LowerArm-Hand chain: one bone per
+    # segment with a linear blend around each joint. Torso/head/legs keep the donor weights.
+    TORSO = {"Hips", "Spine", "Chest", "Neck", "Head"}
+    def chain_weights(p, chain):
+        best = None
+        for i, n in enumerate(chain):
+            a, b = segs[n]; ab = b - a; L = max(ab.length, 1e-6)
+            t = max(0.0, min(1.0, (p - a).dot(ab) / (L * L)))
+            d = (p - (a + ab * t)).length
+            if best is None or d < best[0]: best = (d, i, t, L)
+        d, i, t, L = best
+        w = {chain[i]: 1.0}
+        if t < 0.5 and i > 0:
+            nb = chain[i - 1]; rb = 0.3 * min(L, (segs[nb][1] - segs[nb][0]).length)
+            f = 0.5 * max(0.0, 1.0 - t * L / rb); w = {chain[i]: 1.0 - f, nb: f}
+        elif t >= 0.5 and i + 1 < len(chain):
+            nb = chain[i + 1]; rb = 0.3 * min(L, (segs[nb][1] - segs[nb][0]).length)
+            f = 0.5 * max(0.0, 1.0 - (1.0 - t) * L / rb); w = {chain[i]: 1.0 - f, nb: f}
+        return w
+    rebound = 0
+    for sd in ("Left", "Right"):
+        chain = [f"{sd}Shoulder", f"{sd}UpperArm", f"{sd}LowerArm", f"{sd}Hand"]
+        arm_segs = chain[1:]
+        for v in me.vertices:
+            if (sd == "Left") != (v.co.x >= 0): continue
+            d_arm = min(seg_dist(v.co, *segs[n]) for n in arm_segs)
+            d_torso = min(seg_dist(v.co, *segs[n]) for n in TORSO)
+            if d_arm < 0.8 * d_torso:
+                for g in list(v.groups): body.vertex_groups[g.group].remove([v.index])
+                for n, wt in chain_weights(v.co, chain).items():
+                    if wt > 0.01: body.vertex_groups[n].add([v.index], wt, "REPLACE")
+                rebound += 1
+    print("arm chain pass: re-bound", rebound, "verts")
+    # un-fuse: Meshy sometimes welds a sleeve to the hoodie side/hem where they touch in the A-pose. Faces that
+    # bridge arm-weighted and torso-weighted vertices out on the sleeve (|x| beyond the armpit, below the
+    # shoulder) would stretch into spikes as soon as the arm swings, so drop them (the slit sits in the crease).
+    import bmesh
+    ARM = {f"{sd}{b}" for sd in ("Left", "Right") for b in ("UpperArm", "LowerArm", "Hand")}
+    TORSO = {"Hips", "Spine", "Chest"}
+    dom = [gname[max(v.groups, key=lambda g: g.weight).group] if v.groups else None for v in me.vertices]
+    bm = bmesh.new(); bm.from_mesh(me); bm.faces.ensure_lookup_table()
+    fused = [f for f in bm.faces
+             if abs(f.calc_center_median().x) > 0.11 * HEIGHT and f.calc_center_median().z < 0.60 * HEIGHT
+             and {dom[v.index] for v in f.verts} & ARM and {dom[v.index] for v in f.verts} & TORSO]
+    bmesh.ops.delete(bm, geom=fused, context="FACES")
+    bm.to_mesh(me); bm.free(); me.update()
+    print("un-fuse: removed", len(fused), "faces welding sleeves to the torso")
 else:
     # ---------------- own rig from concept proportions + distance skinning
     tip = max(me.vertices, key=lambda v: v.co.x).co
@@ -230,19 +315,30 @@ else:
         w1, w2 = 1 / d1 ** 4, 1 / d2 ** 4
         if w2 / (w1 + w2) < 0.08: groups[n1].add([v.index], 1.0, "REPLACE")
         else: groups[n1].add([v.index], w1 / (w1 + w2), "REPLACE"); groups[n2].add([v.index], w2 / (w1 + w2), "REPLACE")
-    if HOOD_DOWN:
-        # cloth behind/beside the neck at shoulder height belongs to the torso, not the head
-        n = 0
-        for v in me.vertices:
-            c = v.co
+    print("distance skinning done; ungrouped verts:", sum(1 for v in me.vertices if not v.groups))
+
+if HOOD_DOWN:
+    # hood resting on the shoulders: cloth behind/beside the neck belongs to the torso, not the head.
+    # With donor (Meshy) weights only head-bound cloth below the chin needs moving; the distance rig
+    # needs the whole band behind the neck re-bound (the head bone is the nearest one there).
+    chest = body.vertex_groups.get("Chest") or body.vertex_groups.new(name="Chest")
+    head_ids = {body.vertex_groups[n].index for n in ("Head", "Neck") if body.vertex_groups.get(n)}
+    n = 0
+    for v in me.vertices:
+        c = v.co
+        if MESHY_RIG:
+            hit = c.z < 0.76 * H and c.y > 0.02 * H and v.groups and \
+                max(v.groups, key=lambda g: g.weight).group in head_ids
+        else:
+            torso = abs(c.x) < 0.11 * H                       # exclude the sleeves / upper arms
             shoulder_band = 0.60 * H < c.z < 0.72 * H and c.y > 0.02 * H
             hood_flaps = 0.72 * H <= c.z < 0.86 * H and c.y > 0.07 * H
-            if shoulder_band or hood_flaps:
-                for g in list(v.groups):
-                    body.vertex_groups[g.group].remove([v.index])
-                groups["Chest"].add([v.index], 1.0, "REPLACE"); n += 1
-        print("hood-down fix: reassigned", n, "verts to Chest")
-    print("distance skinning done; ungrouped verts:", sum(1 for v in me.vertices if not v.groups))
+            hit = torso and (shoulder_band or hood_flaps)
+        if hit:
+            for g in list(v.groups):
+                body.vertex_groups[g.group].remove([v.index])
+            chest.add([v.index], 1.0, "REPLACE"); n += 1
+    print("hood-down fix: reassigned", n, "verts to Chest")
 
 hero_anims.build_clips(arm, scene, arm_rest_fix=ARM_FIX)
 bpy.ops.object.mode_set(mode="OBJECT")

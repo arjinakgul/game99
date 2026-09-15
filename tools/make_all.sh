@@ -39,7 +39,9 @@ fi
 HOODDOWN=assets/characters/hero_meshy/hero_meshy_hooddown_v1_textured.glb
 [ -f "$HOODDOWN" ] || HOODDOWN=assets/characters/hero_meshy/hero_meshy_hooddown_v1_mesh.glb
 if [ -f "$HOODDOWN" ]; then
-  $BLENDER -b --python tools/rig_meshy.py -- "$HOODDOWN" hero_meshy_hooddown --hood-down 2>&1 | grep -E "^Hero|skinning|hood-down|DONE|Traceback|line [0-9]+"
+  # the hood-down mesh borrows the hood-up Meshy skeleton + weights (same character, same silhouette)
+  RIGOPT=""; [ -f "$MESHY_RIG" ] && RIGOPT="--meshy-rig $MESHY_RIG"
+  $BLENDER -b --python tools/rig_meshy.py -- "$HOODDOWN" hero_meshy_hooddown --hood-down $RIGOPT 2>&1 | grep -E "^Hero|skinning|transferred|arm chain|un-fuse|hood-down|DONE|Traceback|line [0-9]+"
   $BLENDER -b assets/characters/hero_meshy/hero_meshy_hooddown.blend --python tools/retarget_bvh.py -- $MJOBS 2>&1 | grep -E "^\[|WARN unmapped|DONE|Traceback|line [0-9]+"
   cp assets/exports/hero_meshy_hooddown.glb game-godot/assets/hero_meshy_hooddown.glb
 fi
